@@ -1,0 +1,24 @@
+# Netlify config for the STUDIO 01 static frontend.
+# In Netlify: set "Base directory" = frontend (this file lives in frontend/).
+# No build step is needed — the site is plain static files.
+
+[build]
+  publish = "."
+  command = ""
+
+# Basic security headers. NOTE: the Content-Security-Policy is intentionally
+# permissive for now so the API wiring works during setup; it is tightened in
+# Task 15 (hardening) once the final Render URL is known.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "no-referrer-when-downgrade"
+    Content-Security-Policy = "default-src 'self' https: data: 'unsafe-inline'; img-src 'self' data: https:; connect-src *;"
+
+# Serve the branded 404 page for unknown paths (no backend proxy).
+[[redirects]]
+  from = "/*"
+  to = "/404.html"
+  status = 404

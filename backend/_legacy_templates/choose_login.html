@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login — STUDIO 01</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+    <style>
+        *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+        :root{
+            --espresso:#1C1410;--cream:#FAF7F2;--terracotta:#C4704B;--terracotta-hover:#A85D3C;
+            --brown:#8B7355;--card:#FFFFFF;--border:#E8E0D6;--text-dark:#2C2420;
+            --text-muted:#8B7D72;--text-light:#B5A99A;
+            --shadow-sm:0 1px 3px rgba(28,20,16,.06);--shadow-md:0 4px 20px rgba(28,20,16,.08);
+            --shadow-lg:0 12px 40px rgba(28,20,16,.12);
+            --radius-sm:8px;--radius-md:14px;--radius-lg:20px;--radius-full:9999px;
+            --font-heading:'Syne',sans-serif;--font-body:'Inter',sans-serif;
+            --transition:.3s cubic-bezier(.25,.46,.45,.94)
+        }
+        body{font-family:var(--font-body);background:var(--cream);color:var(--text-dark);line-height:1.6;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+        .choice-wrapper{width:100%;max-width:800px}
+        .choice-header{text-align:center;margin-bottom:48px}
+        .choice-logo{font-family:var(--font-heading);font-size:1.75rem;font-weight:800;letter-spacing:.08em;color:var(--espresso);margin-bottom:16px}
+        .choice-title{font-family:var(--font-heading);font-size:clamp(1.75rem,4vw,2.5rem);font-weight:800;color:var(--espresso);margin-bottom:12px;line-height:1.1}
+        .choice-subtitle{font-size:1.0625rem;color:var(--text-muted);font-weight:300}
+        
+        .choice-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+        
+        .choice-card{background:var(--card);border:2px solid var(--border);border-radius:var(--radius-lg);padding:48px 32px;text-align:center;box-shadow:var(--shadow-md);transition:all var(--transition);text-decoration:none;color:inherit;display:flex;flex-direction:column;align-items:center;position:relative;overflow:hidden}
+        .choice-card:hover{transform:translateY(-6px);box-shadow:var(--shadow-lg);border-color:transparent}
+        .choice-card--customer:hover{border-color:var(--terracotta);background:linear-gradient(to bottom, rgba(196,112,75,.03), var(--card))}
+        .choice-card--admin:hover{border-color:var(--espresso);background:linear-gradient(to bottom, rgba(28,20,16,.03), var(--card))}
+        
+        .choice-icon{width:80px;height:80px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-bottom:24px;transition:all var(--transition)}
+        .choice-card--customer .choice-icon{background:rgba(196,112,75,.1);color:var(--terracotta)}
+        .choice-card--customer:hover .choice-icon{background:var(--terracotta);color:#fff;transform:scale(1.1)}
+        .choice-card--admin .choice-icon{background:rgba(28,20,16,.08);color:var(--espresso)}
+        .choice-card--admin:hover .choice-icon{background:var(--espresso);color:#fff;transform:scale(1.1)}
+        
+        .choice-card-title{font-family:var(--font-heading);font-size:1.5rem;font-weight:700;color:var(--espresso);margin-bottom:8px}
+        .choice-card-desc{font-size:.9375rem;color:var(--text-muted);font-weight:300;line-height:1.6;margin-bottom:32px}
+        
+        .choice-arrow{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:all var(--transition)}
+        .choice-card--customer .choice-arrow{background:rgba(196,112,75,.1);color:var(--terracotta)}
+        .choice-card--customer:hover .choice-arrow{background:var(--terracotta);color:#fff}
+        .choice-card--admin .choice-arrow{background:rgba(28,20,16,.08);color:var(--espresso)}
+        .choice-card--admin:hover .choice-arrow{background:var(--espresso);color:#fff}
+
+        .back-link{display:inline-flex;align-items:center;gap:6px;font-size:.875rem;color:var(--text-muted);text-decoration:none;margin-bottom:32px;transition:color var(--transition)}
+        .back-link:hover{color:var(--espresso)}
+
+        @media(max-width:600px){
+            .choice-grid{grid-template-columns:1fr}
+            .choice-card{padding:36px 24px}
+        }
+    </style>
+</head>
+<body>
+    <div class="choice-wrapper">
+        <a href="/" class="back-link"><iconify-icon icon="lucide:arrow-left" width="16"></iconify-icon> Back to Home</a>
+        
+        <div class="choice-header">
+            <div class="choice-logo">STUDIO 01</div>
+            <h1 class="choice-title">How would you like to continue?</h1>
+            <p class="choice-subtitle">Select your account type to proceed to the login screen</p>
+        </div>
+        
+        <div class="choice-grid">
+            <a href="/login/customer" class="choice-card choice-card--customer">
+                <div class="choice-icon">
+                    <iconify-icon icon="lucide:user" width="40"></iconify-icon>
+                </div>
+                <h2 class="choice-card-title">Customer</h2>
+                <p class="choice-card-desc">Order food, earn loyalty coins, and track your order history.</p>
+                <span class="choice-arrow"><iconify-icon icon="lucide:arrow-right" width="20"></iconify-icon></span>
+            </a>
+
+            <a href="/login/admin" class="choice-card choice-card--admin">
+                <div class="choice-icon">
+                    <iconify-icon icon="lucide:shield-check" width="40"></iconify-icon>
+                </div>
+                <h2 class="choice-card-title">Admin / Owner</h2>
+                <p class="choice-card-desc">Manage incoming orders, table reservations, and the menu.</p>
+                <span class="choice-arrow"><iconify-icon icon="lucide:arrow-right" width="20"></iconify-icon></span>
+            </a>
+        </div>
+    </div>
+</body>
+</html>

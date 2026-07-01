@@ -1,0 +1,39 @@
+name: Build and Push Docker
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  docker-build-push:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Login to Docker Hub
+        if: secrets.DOCKERHUB_USERNAME && secrets.DOCKERHUB_TOKEN
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build and push
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/studio01:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/studio01:${{ github.sha }}
+      - name: Set Sentry release (optional)
+        if: ${{ secrets.SENTRY_AUTH_TOKEN && secrets.SENTRY_ORG && secrets.SENTRY_PROJECT }}
+        run: |
+          echo "SENTRY_RELEASE=${GITHUB_SHA}" >> $GITHUB_ENV
+          curl -sL https://sentry.io/get-cli/ | bash
+          export SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
+          sentry-cli releases new -p ${{ secrets.SENTRY_PROJECT }} ${{ github.sha }} || true
+          sentry-cli releases set-commits --auto ${{ github.sha }} || true
+          sentry-cli releases finalize ${{ github.sha }} || true

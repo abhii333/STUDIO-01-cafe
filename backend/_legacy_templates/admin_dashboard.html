@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin — STUDIO 01</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;800&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+    <style>
+        *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+        :root{--espresso:#1C1410;--cream:#FAF7F2;--terracotta:#C4704B;--border:#E8E0D6;--text-dark:#2C2420;--text-muted:#8B7D72;--card:#FFF;--font-h:'Syne',sans-serif;--font-b:'Inter',sans-serif}
+        body{font-family:var(--font-b);background:var(--cream);color:var(--text-dark);padding:80px 24px}
+        .container{max-width:1200px;margin:0 auto}
+        nav{position:fixed;top:0;left:0;right:0;height:72px;background:rgba(250,247,242,.95);backdrop-filter:blur(16px);box-shadow:0 1px 0 var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 24px;z-index:100}
+        nav a{font-size:.875rem;color:var(--text-muted);text-decoration:none;font-weight:500}nav a:hover{color:var(--espresso)}
+        h1{font-family:var(--font-h);font-size:2rem;margin-bottom:30px}
+        .grid{display:grid;grid-template-columns:2fr 1fr;gap:24px;margin-bottom:40px}
+        .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:24px;box-shadow:0 4px 20px rgba(0,0,0,.03)}
+        .card h3{font-family:var(--font-h);margin-bottom:20px;font-size:1.1rem}
+        .tabs{display:flex;gap:8px;margin-bottom:24px;border-bottom:1px solid var(--border);padding-bottom:12px}
+        .tab{padding:8px 16px;border-radius:8px;font-size:.875rem;font-weight:500;border:none;background:transparent;color:var(--text-muted);cursor:pointer}
+        .tab.active{background:rgba(196,112,75,.1);color:var(--terracotta)}
+        .section{display:none}.section.active{display:block}
+        .order{border:1px solid var(--border);border-radius:14px;margin-bottom:16px;overflow:hidden}
+        .order-head{padding:16px;background:var(--cream);display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)}
+        .order-body{padding:16px;font-size:.875rem}
+        .badge{padding:4px 12px;border-radius:999px;font-size:.7rem;font-weight:700;text-transform:uppercase}
+        .badge-pending{background:rgba(255,193,7,.1);color:#ffc107}
+        .badge-preparing{background:rgba(0,123,255,.1);color:#007bff}
+        .badge-ready{background:rgba(40,167,69,.1);color:#28a745}
+        .badge-completed{background:rgba(108,117,125,.1);color:#6c757d}
+        .btn{background:var(--espresso);color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:.75rem;font-weight:600;cursor:pointer;margin-top:12px;font-family:inherit}
+        select, input{padding:10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;width:100%;margin-bottom:12px;box-sizing:border-box}
+        .toggle-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+        .toggle-item{padding:10px;background:var(--cream);border-radius:8px;font-size:.8rem;display:flex;justify-content:space-between;align-items:center;cursor:pointer;border:1px solid var(--border)}
+        .toggle-item.sold{background:rgba(220,53,69,.05);border-color:rgba(220,53,69,.2);color:#dc3545}
+        @media(max-width:900px){.grid{grid-template-columns:1fr}}
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="/" style="font-family:var(--font-h);font-weight:800;color:var(--espresso);font-size:1.1rem">STUDIO 01 ADMIN</a>
+        <div style="display:flex;gap:20px"><a href="/">View Site</a><a href="/admin/change-password">Change Password</a><a href="/logout">Logout</a></div>
+    </nav>
+    <div class="container">
+        <h1>Dashboard</h1>
+        <div class="grid">
+            <div class="card"><h3>Revenue (Completed Orders)</h3><canvas id="revenueChart" height="120"></canvas></div>
+            <div style="display:flex;flex-direction:column;gap:24px">
+                <div class="card">
+                    <h3>Set Special of the Day</h3>
+                    <select id="specItem"></select>
+                    <input type="number" id="specDisc" placeholder="Discount %" value="20" min="5" max="50">
+                    <button class="btn" onclick="setSpecial()">Activate Special</button>
+                </div>
+                <div class="card">
+                    <h3>Toggle Sold Out</h3>
+                    <div class="toggle-grid" id="soldOutGrid"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('orders', this)">Orders</button>
+            <button class="tab" onclick="switchTab('res', this)">Reservations</button>
+            <button class="tab" onclick="switchTab('audits', this)">Audits</button>
+        </div>
+
+        <div id="orders-sec" class="section active"></div>
+        <div id="res-sec" class="section"></div>
+        <div id="audits-sec" class="section"></div>
+    </div>
+
+<script>
+const menuItems = ["Roasted Tomato Basil Soup","Quinoa & Pomegranate Salad","Truffle Mushroom Bruschetta","Edamame Hummus Platter","Roasted Vegetable Risotto","Paneer Roulade","Thai Green Curry Bowl","Caprese Ciabatta","Smoked Gouda & Pear Melt","Cold Brew Coffee","Hibiscus Iced Tea","Turmeric Oat Latte","Dark Chocolate Ganache Tart","Saffron Infused Panna Cotta"];
+
+// Init Selects
+document.getElementById('specItem').innerHTML = menuItems.map(m=>`<option value="${m}">${m}</option>`).join('');
+
+async function loadData() {
+    const [stats, orders, res, so, audits] = await Promise.all([
+        fetch('/api/admin/stats').then(r=>r.json()),
+        fetch('/api/admin/orders').then(r=>r.json()),
+        fetch('/api/admin/reservations').then(r=>r.json()),
+        fetch('/api/soldout').then(r=>r.json()),
+        fetch('/api/admin/audits').then(r=>r.json())
+    ]);
+
+    // Chart
+    const ctx = document.getElementById('revenueChart').getContext('2d');
+    new Chart(ctx, {type:'bar', data:{labels:Object.keys(stats), datasets:[{label:'Revenue (₹)',data:Object.values(stats),backgroundColor:'rgba(196, 112, 75, 0.5)',borderColor:'#C4704B',borderWidth:2}]}, options:{scales:{y:{beginAtZero:true}}}});
+
+    // Sold Out Grid
+    document.getElementById('soldOutGrid').innerHTML = menuItems.map(m => 
+        `<div class="toggle-item ${so.includes(m)?'sold':''}" onclick="toggleSold('${m}', this)">${m}<span>${so.includes(m)?'SOLD OUT':'AVAILABLE'}</span></div>`
+    ).join('');
+
+    // Orders
+    const oSec = document.getElementById('orders-sec');
+    oSec.innerHTML = orders.length ? orders.map(o => {
+        const items = o.items.map(i=>i.name).join(', ');
+        let btn = '';
+        if(o.status==='Pending') btn = `<button class="btn" onclick="updStatus(${o.order_id}, 'Preparing')">Start Preparing</button> <button class="btn" style="background:#2c9f4a;margin-left:8px" onclick="markPaid(${o.order_id})">Mark Paid</button>`;
+        if(o.status==='Preparing') btn = `<button class="btn" onclick="updStatus(${o.order_id}, 'Ready')">Mark Ready</button>`;
+        if(o.status==='Ready') btn = `<button class="btn" onclick="updStatus(${o.order_id}, 'Completed')">Complete</button>`;
+                const statuses = ['Pending', 'Preparing', 'Ready', 'Completed'];
+        const currIdx = statuses.indexOf(o.status);
+        const trackerHtml = statuses.map((s, i) => `
+            <div style="display:flex;flex-direction:column;align-items:center;flex:1;position:relative;z-index:1">
+                <div style="width:28px;height:28px;border-radius:50%;background:${i < currIdx ? '#28a745' : i === currIdx ? 'var(--terracotta)' : 'var(--border)'};color:${i <= currIdx ? '#fff' : 'var(--text-muted)'};display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;margin-bottom:6px">${i < currIdx ? '✓' : i+1}</div>
+                <span style="font-size:.65rem;color:${i <= currIdx ? 'var(--espresso)' : 'var(--text-muted)'};text-transform:uppercase;font-weight:600">${s}</span>
+            </div>`).join('');
+
+        const paymentLabel = o.payment_method ? `<p style="margin-top:8px"><strong>Payment:</strong> ${o.payment_method}</p>` : '';
+        return `<div class="order">
+            <div class="order-head"><strong>#${o.order_id} by ${o.customer_name}</strong><span class="badge badge-${o.status.toLowerCase()}">${o.status}</span></div>
+            <div class="order-body">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin:16px 0 24px;position:relative">
+                    <div style="position:absolute;top:14px;left:30px;right:30px;height:2px;background:var(--border);z-index:0"></div>
+                    ${trackerHtml}
+                </div>
+                <p><strong>Items:</strong> ${items}</p>
+                <p style="margin-top:8px"><strong>Total:</strong> ₹${o.currency_paid}</p>
+                ${paymentLabel}
+                ${btn}
+            </div>
+        </div>`;
+    }).join('') : '<p style="text-align:center;color:var(--text-muted)">No orders.</p>';
+
+    // Reservations
+    const rSec = document.getElementById('res-sec');
+    rSec.innerHTML = res.length ? res.map(r => `<div class="order"><div class="order-head"><strong>${r.name}</strong><span>${r.email}</span></div><div class="order-body"><p><strong>Date:</strong> ${r.date} | <strong>Time:</strong> ${r.time} | <strong>Guests:</strong> ${r.guests}</p>${r.notes!=='None'?`<p style="margin-top:8px;color:var(--text-muted)">"${r.notes}"</p>`:''}</div></div>`).join('') : '<p style="text-align:center;color:var(--text-muted)">No reservations.</p>';
+
+        // Audits
+        const aSec = document.getElementById('audits-sec');
+        aSec.innerHTML = audits.length ? audits.map(a => {
+            return `<div class="order"><div class="order-head"><strong>Order #${a.order_id}</strong><span>${a.action}</span></div><div class="order-body"><p><strong>By:</strong> ${a.admin} | <strong>At:</strong> ${new Date(a.timestamp).toLocaleString()}</p><p style="margin-top:8px;color:var(--text-muted)">${JSON.stringify(a.meta)}</p></div></div>`
+        }).join('') : '<p style="text-align:center;color:var(--text-muted)">No audit entries.</p>';
+}
+
+function switchTab(id, el) {
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById(id+'-sec').classList.add('active');
+}
+
+async function updStatus(id, status) {
+    await fetch('/api/admin/update-order-status', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({order_id:id, status})});
+    loadData();
+}
+
+async function setSpecial() {
+    const item = document.getElementById('specItem').value;
+    const disc = document.getElementById('specDisc').value;
+    await fetch('/api/admin/special', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({item, discount:disc})});
+    alert('Special activated!');
+}
+
+async function toggleSold(item, el) {
+    await fetch('/api/admin/toggle-soldout', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({item})});
+    el.classList.toggle('sold');
+    el.querySelector('span').innerText = el.classList.contains('sold') ? 'SOLD OUT' : 'AVAILABLE';
+}
+
+loadData();
+</script>
+<script>
+// simple UI helpers: toasts and reusable modal component
+function showToast(msg, kind='info', timeout=3000){
+    let t = document.getElementById('globalToast');
+    if(!t){
+        t = document.createElement('div'); t.id='globalToast';
+        t.style.position='fixed'; t.style.right='20px'; t.style.top='20px'; t.style.zIndex=9999; document.body.appendChild(t);
+    }
+    const el = document.createElement('div');
+    el.textContent = msg;
+    el.style.background = kind==='error' ? '#dc3545' : kind==='success' ? '#2c9f4a' : '#333';
+    el.style.color='#fff'; el.style.padding='10px 14px'; el.style.borderRadius='8px'; el.style.marginTop='8px'; el.style.boxShadow='0 6px 20px rgba(0,0,0,.12)';
+    t.appendChild(el);
+    setTimeout(()=>{ el.style.transition='opacity .4s'; el.style.opacity=0; setTimeout(()=>el.remove(),400); }, timeout);
+}
+
+// subtle reveal animation for admin cards
+document.addEventListener('DOMContentLoaded', ()=>{
+    const r = document.querySelectorAll('.card');
+    r.forEach((el,i)=>{ el.style.opacity=0; el.style.transform='translateY(12px)'; setTimeout(()=>{ el.style.transition='all .45s ease'; el.style.opacity=1; el.style.transform='translateY(0)'; }, 80*i); });
+});
+</script>
+<!-- Mark Paid Modal -->
+<div id="markPaidModal" style="display:none;position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,.5);align-items:center;justify-content:center;z-index:200">
+    <div style="background:#fff;padding:20px;border-radius:12px;max-width:420px;width:92%;box-shadow:0 10px 40px rgba(0,0,0,.2);">
+        <h3 style="margin-bottom:8px">Confirm Payment</h3>
+        <p style="color:#8B7D72;margin-bottom:12px">Enter payment id to associate with this order (optional).</p>
+        <input id="markPaidInput" placeholder="Payment ID (optional)" style="width:100%;padding:10px;border:1px solid #E8E0D6;border-radius:8px;margin-bottom:12px" />
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+            <button class="btn" style="background:#ccc;color:#222" onclick="closeMarkModal()">Cancel</button>
+            <button class="btn" onclick="confirmMarkPaid()">Confirm</button>
+        </div>
+    </div>
+</div>
+<script>
+let _pendingMarkOrder = null;
+function markPaid(orderId){
+        _pendingMarkOrder = orderId;
+        document.getElementById('markPaidInput').value = '';
+        document.getElementById('markPaidModal').style.display = 'flex';
+}
+function closeMarkModal(){ document.getElementById('markPaidModal').style.display = 'none'; _pendingMarkOrder = null; }
+async function confirmMarkPaid(){
+        const pid = document.getElementById('markPaidInput').value || null;
+    try{
+        const res = await fetch('/api/admin/mark-paid', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({order_id:_pendingMarkOrder, payment_id: pid})});
+        if(res.ok){ showToast('Order marked Paid', 'success'); }
+        else { showToast('Failed to mark Paid', 'error'); }
+    }catch(e){ showToast('Network error', 'error'); }
+    closeMarkModal();
+    loadData();
+}
+</script>
+</body>
+</html>

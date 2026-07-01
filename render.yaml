@@ -1,0 +1,33 @@
+# Render blueprint for the STUDIO 01 Flask API.
+# In Render: New + > Blueprint, point at this repo. Render reads this file.
+services:
+  - type: web
+    name: studio01-api
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: AUTO_INIT_DB
+        value: "1"
+      - key: PRODUCTION
+        value: "1"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: JWT_SECRET
+        generateValue: true
+      # Set these in the Render dashboard (marked sync:false = you provide them):
+      - key: DATABASE_URL      # Neon connection string
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: FRONTEND_ORIGIN   # your Netlify URL, e.g. https://your-cafe.netlify.app
+        sync: false
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false

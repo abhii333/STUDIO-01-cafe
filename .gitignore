@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.sqlite3
+*.db
+*.db-journal
+.env
+.venv/
+.venv-1/
+venv/
+ENV/
+env/
+.env.local
+
+# Editor
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Logs
+logs/
+*.log
+
+# Distribution
+build/
+dist/
+*.egg-info/
+
+# Docker
+docker-compose.override.yml
+
+# Others
+*.pem
+
+# Ignore secrets and local settings
+instance/
+.venv-2/
+.venv*/
+node_modules/
+.kiro/

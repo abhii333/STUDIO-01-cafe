@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard — STUDIO 01</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;800&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+    <style>
+        *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+        :root{--espresso:#1C1410;--cream:#FAF7F2;--terracotta:#C4704B;--border:#E8E0D6;--text-dark:#2C2420;--text-muted:#8B7D72;--card:#FFF;--font-h:'Syne',sans-serif;--font-b:'Inter',sans-serif}
+        body{font-family:var(--font-b);background:var(--cream);color:var(--text-dark);padding:80px 24px}
+        .container{max-width:900px;margin:0 auto}
+        nav{position:fixed;top:0;left:0;right:0;height:72px;background:rgba(250,247,242,.95);backdrop-filter:blur(16px);box-shadow:0 1px 0 var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 24px;z-index:100}
+        nav a{font-size:.875rem;color:var(--text-muted);text-decoration:none;font-weight:500}nav a:hover{color:var(--espresso)}
+        h1{font-family:var(--font-h);font-size:2rem;margin-bottom:8px}
+        .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:30px 0}
+        .stat{background:var(--card);padding:20px;border-radius:14px;border:1px solid var(--border)}
+        .stat h4{font-size:.75rem;color:var(--text-muted);text-transform:uppercase;margin-bottom:8px}
+        .stat span{font-family:var(--font-h);font-size:2rem;font-weight:800}
+        .stat.coins span{color:var(--terracotta)}
+        .ref-box{background:var(--espresso);color:#fff;padding:20px;border-radius:14px;margin-bottom:30px;display:flex;justify-content:space-between;align-items:center}
+        .ref-code{font-family:monospace;font-size:1.5rem;letter-spacing:4px;color:var(--terracotta);background:rgba(255,255,255,.1);padding:8px 16px;border-radius:8px}
+        .order{background:var(--card);border:1px solid var(--border);border-radius:14px;margin-bottom:20px;overflow:hidden}
+        .order-head{padding:20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+        .order-head h3{font-family:var(--font-h);font-size:1.1rem}
+        .order-body{padding:20px}
+        
+        /* Animated Tracker */
+        .tracker{display:flex;align-items:center;justify-content:space-between;margin:20px 0;position:relative}
+        .tracker::before{content:'';position:absolute;top:15px;left:40px;right:40px;height:2px;background:var(--border);z-index:0}
+        .step{display:flex;flex-direction:column;align-items:center;position:relative;z-index:1}
+        .circle{width:32px;height:32px;border-radius:50%;background:var(--border);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-weight:700;font-size:.8rem;margin-bottom:8px;transition:all .3s}
+        .step.active .circle{background:var(--terracotta);color:#fff;box-shadow:0 0 0 4px rgba(196,112,75,.2)}
+        .step.done .circle{background:#28a745;color:#fff}
+        .step span{font-size:.7rem;color:var(--text-muted);text-transform:uppercase;font-weight:600}
+        .step.active span, .step.done span{color:var(--espresso)}
+        
+        .review-form{margin-top:20px;padding-top:20px;border-top:1px solid var(--border);display:none}
+        .stars-input{font-size:2rem;cursor:pointer;color:var(--border)}
+        .stars-input.active{color:#f4c430}
+        textarea{width:100%;margin:10px 0;padding:10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;resize:none}
+        .btn{background:var(--terracotta);color:#fff;border:none;padding:10px 20px;border-radius:999px;font-weight:600;cursor:pointer;font-family:inherit}
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="/" style="font-family:var(--font-h);font-weight:800;color:var(--espresso);font-size:1.1rem">STUDIO 01</a>
+        <div style="display:flex;gap:20px"><a href="/">Menu</a><a href="/change-password">Change Password</a><a href="/logout">Logout</a></div>
+    </nav>
+    <div class="container">
+        <h1>My Dashboard</h1>
+        <p style="color:var(--text-muted)">Welcome back, <span id="uName"></span>!</p>
+        
+        <div class="ref-box">
+            <div><h4 style="color:rgba(255,255,255,.5);margin-bottom:4px">YOUR REFERRAL CODE</h4><p style="font-size:.8rem;color:rgba(255,255,255,.7)">Share this to earn 50 free coins!</p></div>
+            <div class="ref-code" id="refCode">------</div>
+        </div>
+
+        <div class="stats">
+            <div class="stat coins"><h4>Coins</h4><span id="sCoins">0</span></div>
+            <div class="stat"><h4>Orders</h4><span id="sOrders">0</span></div>
+            <div class="stat"><h4>Spent</h4><span id="sSpent">₹0</span></div>
+        </div>
+
+        <h2 style="font-family:var(--font-h);margin-bottom:20px">Order History</h2>
+        <div id="orders"></div>
+    </div>
+
+<script>
+// subtle reveal animation for dashboard
+document.addEventListener('DOMContentLoaded', ()=>{
+    const r = document.querySelectorAll('.card, .order');
+    r.forEach((el,i)=>{ el.style.opacity=0; el.style.transform='translateY(12px)'; setTimeout(()=>{ el.style.transition='all .5s ease'; el.style.opacity=1; el.style.transform='translateY(0)'; }, 80*i); });
+});
+
+let profile = {};
+async function init() {
+    try {
+        const pRes = await fetch('/api/user/profile'); if(!pRes.ok) throw 0; profile = await pRes.json();
+        document.getElementById('uName').innerText = profile.username;
+        document.getElementById('sCoins').innerText = profile.coins;
+        document.getElementById('refCode').innerText = profile.ref_code;
+    } catch(e) { window.location.href = '/login'; return; }
+
+    const orders = await (await fetch('/api/user/orders')).json();
+    document.getElementById('sOrders').innerText = orders.length;
+    document.getElementById('sSpent').innerText = '₹' + orders.reduce((a,b) => a + b.currency_paid, 0);
+
+    const cont = document.getElementById('orders');
+    const statuses = ['Pending', 'Preparing', 'Ready', 'Completed'];
+    
+    if(!orders.length) { cont.innerHTML = '<p style="text-align:center;color:var(--text-muted)">No orders yet.</p>'; return; }
+
+    cont.innerHTML = orders.map(o => {
+        const currIdx = statuses.indexOf(o.status);
+        const trackerHtml = statuses.map((s, i) => `
+            <div class="step ${i < currIdx ? 'done' : ''} ${i === currIdx ? 'active' : ''}">
+                <div class="circle">${i < currIdx ? '✓' : i+1}</div>
+                <span>${s}</span>
+            </div>`).join('');
+
+        const itemsHtml = o.items.map(i => `${i.name} (x${i.quantity})`).join(', ');
+        const showReview = o.status === 'Completed';
+        
+        return `<div class="order">
+            <div class="order-head"><h3>Order #${o.order_id}</h3><span style="font-size:.8rem;color:var(--text-muted)">${o.date_time}</span></div>
+            <div class="order-body">
+                <div class="tracker">${trackerHtml}</div>
+                <p style="font-size:.875rem;color:var(--text-muted)"><strong>Items:</strong> ${itemsHtml} <br><strong>Total Paid:</strong> ₹${o.currency_paid} ${o.coins_used > 0 ? '(+ '+o.coins_used+' coins)' : ''}</p>
+                
+                <div class="review-form" id="rev-${o.order_id}">
+                    <p style="font-weight:600;margin-bottom:10px">Rate this order:</p>
+                    <div class="stars-input" data-oid="${o.order_id}" data-item="${o.items[0].name}">☆☆☆☆☆</div>
+                    <textarea placeholder="Leave a comment (optional)" rows="2"></textarea>
+                    <button class="btn submit-review">Submit Review</button>
+                </div>
+                ${showReview ? `<button class="btn" style="margin-top:15px;font-size:.8rem" onclick="document.getElementById('rev-${o.order_id}').style.display='block'; this.style.display='none'">Write a Review</button>` : ''}
+            </div>
+        </div>`;
+    }).join('');
+
+    // Star Logic
+    document.querySelectorAll('.stars-input').forEach(starDiv => {
+        starDiv.onmouseover = e => { if(e.target.tagName !== 'DIV') return; let idx = [...starDiv.children].indexOf(e.target); [...starDiv.children].forEach((s,i) => s.innerText = i <= idx ? '★' : '☆'); };
+        starDiv.onclick = e => { if(e.target.tagName !== 'DIV') return; let idx = [...starDiv.children].indexOf(e.target); starDiv.classList.add('active'); starDiv.dataset.rating = idx + 1; };
+    });
+
+    document.querySelectorAll('.submit-review').forEach(btn => {
+        btn.onclick = async () => {
+            const form = btn.closest('.review-form');
+            const starDiv = form.querySelector('.stars-input');
+            const rating = parseInt(starDiv.dataset.rating || 1);
+            const comment = form.querySelector('textarea').value;
+            const oid = starDiv.dataset.oid;
+            const item = starDiv.dataset.item;
+            
+            await fetch(`/api/user/orders/${oid}/review`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({item, rating, comment})});
+            form.innerHTML = '<p style="color:#28a745;font-weight:600">Thanks for your review!</p>';
+        };
+    });
+}
+init();
+</script>
+</body>
+</html>
