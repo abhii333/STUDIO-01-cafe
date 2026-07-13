@@ -326,7 +326,7 @@
 
             <div style="margin-bottom:16px;padding:16px;background:rgba(255,255,255,.95);border:1px solid var(--border);border-radius:12px;">
                 <div style="font-size:.9rem;font-weight:700;margin-bottom:10px">Choose payment method</div>
-                <label style="display:flex;align-items:center;gap:10px;margin-bottom:8px;cursor:pointer">
+                <label id="payOnlineLabel" style="display:flex;align-items:center;gap:10px;margin-bottom:8px;cursor:pointer">
                     <input type="radio" name="paymentMethod" value="online" checked onchange="setPaymentMethod('online')">
                     <span>Pay online with Razorpay</span>
                 </label>
@@ -977,6 +977,18 @@
         document.getElementById('orderModal').classList.remove('open');
         document.getElementById('cartOverlay').classList.remove('open');
     };
+    // If online payment isn't configured on the server, hide it and default to cash.
+    try {
+        const cfg = await fetch(apiUrl('/api/config')).then(r => r.json());
+        if (!cfg.razorpay_available) {
+            const onlineLabel = document.getElementById('payOnlineLabel');
+            if (onlineLabel) onlineLabel.style.display = 'none';
+            const cashRadio = document.querySelector('input[name="paymentMethod"][value="cash"]');
+            if (cashRadio) cashRadio.checked = true;
+            setPaymentMethod('cash');
+        }
+    } catch(e) {}
+
     // Initialize
     renderTabs();
     renderGrid();
