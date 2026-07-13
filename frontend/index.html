@@ -11,6 +11,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="js/config.js"></script>
     <script src="js/api.js"></script>
+    <script>if('scrollRestoration' in history)history.scrollRestoration='manual';window.addEventListener('load',function(){if(!location.hash)window.scrollTo(0,0);});</script>
     <style>
         *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
         :root{--espresso:#1C1410;--cream:#FAF7F2;--terracotta:#C4704B;--border:#E8E0D6;--text-dark:#2C2420;--text-muted:#8B7D72;--card:#FFFFFF;--font-heading:'Syne',sans-serif;--font-body:'Inter',sans-serif;--radius-md:14px;--radius-sm:8px;--radius-full:9999px;--shadow-md:0 4px 20px rgba(28,20,16,.08);--transition:.3s ease}
@@ -242,14 +243,8 @@
                     <div class="booking-feature"><iconify-icon icon="lucide:dog"></iconify-icon><span>Pet-friendly terrace</span></div>
                 </div>
             </div>
-            <div class="booking-form" id="bookingFormWrap">
-                <div id="bookingLoginPrompt" style="text-align:center;padding:40px 20px;">
-                    <iconify-icon icon="lucide:lock" width="40" style="color:var(--terracotta);margin-bottom:16px"></iconify-icon>
-                    <h3 style="font-family:var(--font-heading);margin-bottom:8px">Login Required</h3>
-                    <p style="color:var(--text-muted);margin-bottom:20px;font-size:.9rem">Please log in to make a reservation.</p>
-                    <a href="login.html" class="btn btn-primary">Log In</a>
-                </div>
-                <form id="bookingForm" novalidate onsubmit="return false;" style="display:none;">
+            <div class="booking-form">
+                <form id="bookingForm" novalidate onsubmit="return false;">
                     <div class="form-row">
                         <div class="form-group"><label class="form-label" for="bookName">Name</label><input type="text" id="bookName" class="form-input" placeholder="Your name" required></div>
                         <div class="form-group"><label class="form-label" for="bookEmail">Email</label><input type="email" id="bookEmail" class="form-input" placeholder="you@email.com" required></div>
@@ -476,9 +471,6 @@
                 <a href="customer-dashboard.html" class="nav-btn"><iconify-icon icon="lucide:user" width="14"></iconify-icon> ${u.username}</a>
                 <a href="#" class="nav-btn" id="logoutBtn">Logout</a>`;
             document.getElementById('logoutBtn').addEventListener('click', (e) => { e.preventDefault(); API.logout(); });
-            // Show booking form for logged-in users
-            document.getElementById('bookingForm').style.display = 'block';
-            document.getElementById('bookingLoginPrompt').style.display = 'none';
             updateCartUI();
         } else {
             cart = {};
