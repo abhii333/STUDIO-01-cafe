@@ -242,8 +242,14 @@
                     <div class="booking-feature"><iconify-icon icon="lucide:dog"></iconify-icon><span>Pet-friendly terrace</span></div>
                 </div>
             </div>
-            <div class="booking-form">
-                <form id="bookingForm" novalidate onsubmit="return false;">
+            <div class="booking-form" id="bookingFormWrap">
+                <div id="bookingLoginPrompt" style="text-align:center;padding:40px 20px;">
+                    <iconify-icon icon="lucide:lock" width="40" style="color:var(--terracotta);margin-bottom:16px"></iconify-icon>
+                    <h3 style="font-family:var(--font-heading);margin-bottom:8px">Login Required</h3>
+                    <p style="color:var(--text-muted);margin-bottom:20px;font-size:.9rem">Please log in to make a reservation.</p>
+                    <a href="login.html" class="btn btn-primary">Log In</a>
+                </div>
+                <form id="bookingForm" novalidate onsubmit="return false;" style="display:none;">
                     <div class="form-row">
                         <div class="form-group"><label class="form-label" for="bookName">Name</label><input type="text" id="bookName" class="form-input" placeholder="Your name" required></div>
                         <div class="form-group"><label class="form-label" for="bookEmail">Email</label><input type="email" id="bookEmail" class="form-input" placeholder="you@email.com" required></div>
@@ -460,26 +466,21 @@
             ? await fetch(apiUrl('/api/user/profile'), { headers: { 'Authorization': 'Bearer ' + at } })
             : { ok: false };
         if(uRes.ok) {
-            isLoggedIn = true; // Mark as logged in
+            isLoggedIn = true;
             const u = await uRes.json();
-            userCoins = u.coins; // Set coins for the cart to use
-            
-            // ONLY load saved cart if logged in
+            userCoins = u.coins;
             try { if(localStorage.cart) cart = JSON.parse(localStorage.cart); } catch(e) { cart = {}; }
-
-            // Show Username, Coins, and Logout in Navbar
             document.getElementById('navActions').innerHTML = `
                 <button class="nav-btn" id="openCart"><iconify-icon icon="lucide:shopping-bag" width="16"></iconify-icon> Cart (<span id="cartCount">0</span>)</button>
                 <span class="nav-btn nav-coin"><iconify-icon icon="lucide:coins" width="14"></iconify-icon> ${u.coins}</span>
                 <a href="customer-dashboard.html" class="nav-btn"><iconify-icon icon="lucide:user" width="14"></iconify-icon> ${u.username}</a>
                 <a href="#" class="nav-btn" id="logoutBtn">Logout</a>`;
-            
-            // Clear session + local cart on logout
             document.getElementById('logoutBtn').addEventListener('click', (e) => { e.preventDefault(); API.logout(); });
-            
-            updateCartUI(); // Update cart NOW that we have the correct coin balance
+            // Show booking form for logged-in users
+            document.getElementById('bookingForm').style.display = 'block';
+            document.getElementById('bookingLoginPrompt').style.display = 'none';
+            updateCartUI();
         } else {
-            // Guest user: ensure cart is empty and don't use localStorage
             cart = {};
             updateCartUI();
         }
