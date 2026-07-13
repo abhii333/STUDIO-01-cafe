@@ -463,14 +463,15 @@ def register():
     db.session.flush()
 
     if ref_code:
-        ref = ReferralCode.query.filter_by(code=ref_code.upper()).first()
+        ref = ReferralCode.query.filter(db.func.lower(ReferralCode.code) == ref_code.lower()).first()
         if ref and ref.owner_id != new_user.id:
             owner = User.query.get(ref.owner_id)
             if owner:
                 owner.coins += 50
             new_user.coins += 50
 
-    db.session.add(ReferralCode(code=username.upper()[:6], owner_id=new_user.id))
+    # Referral code mirrors the username as typed (capped to the column length).
+    db.session.add(ReferralCode(code=username[:10], owner_id=new_user.id))
     db.session.commit()
 
     access, refresh = issue_tokens(new_user)
@@ -1592,6 +1593,22 @@ def seed_events():
     db.session.commit()
 
 
+def normalize_referral_codes():
+    """Make each customer's referral code match their username (fixes older uppercased codes)."""
+    changed = False
+    for u in User.query.filter(User.role != 'Admin').all():
+        ref = ReferralCode.query.filter_by(owner_id=u.id).first()
+        desired = u.username[:10]
+        if ref and ref.code != desired:
+            clash = ReferralCode.query.filter(db.func.lower(ReferralCode.code) == desired.lower(),
+                                              ReferralCode.owner_id != u.id).first()
+            if not clash:
+                ref.code = desired
+                changed = True
+    if changed:
+        db.session.commit()
+
+
 def init_db():
     with app.app_context():
         db.create_all()
@@ -1600,6 +1617,7 @@ def init_db():
         seed_badges()
         seed_events()
         seed_admin()
+        normalize_referral_codes()
 
 
 # Auto-init on import when explicitly enabled (set AUTO_INIT_DB=1 on Render).

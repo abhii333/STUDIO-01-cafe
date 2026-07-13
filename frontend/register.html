@@ -77,7 +77,7 @@
     <script src="js/api.js"></script>
     <script>
         if (window.API && API.isLoggedIn()) {
-            window.location.href = API.isAdmin() ? 'admin-dashboard.html' : 'customer-dashboard.html';
+            window.location.href = API.isAdmin() ? 'admin-dashboard.html' : 'index.html';
         }
         function showToast(msg, icon) {
             const t = document.createElement('div');
@@ -104,7 +104,7 @@
                 if (!res.ok) { showToast(data.message || 'Registration failed', 'lucide:alert-circle'); btn.disabled = false; return; }
                 API.setSession(data);
                 showToast('Account created! Welcome.', 'lucide:check-circle');
-                setTimeout(() => { window.location.href = 'customer-dashboard.html'; }, 600);
+                setTimeout(() => { window.location.href = 'index.html'; }, 600);
             } catch (err) {
                 showToast('Could not reach the server. Try again.', 'lucide:x-circle');
                 btn.disabled = false;
