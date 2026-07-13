@@ -166,7 +166,6 @@
             <li><a href="#book" class="nav-link">Book</a></li>
         </ul>
         <div class="nav-actions" id="navActions">
-            <button class="nav-btn" id="openCart"><iconify-icon icon="lucide:shopping-bag" width="16"></iconify-icon> Cart (<span id="cartCount">0</span>)</button>
             <a href="login.html" class="nav-btn" id="loginBtn">Login</a>
         </div>
         <button class="hamburger" id="hamburger"><span class="hamburger-line"></span><span class="hamburger-line"></span><span class="hamburger-line"></span></button>
@@ -609,6 +608,11 @@
     // Customize Modal
     let currentCustItem = {};
     function openCustomize(name, cat, basePrice) {
+        if(!(window.API && API.isLoggedIn())) {
+            showToast('Please log in to add items to cart', 'lucide:alert-circle');
+            setTimeout(()=>{ window.location = 'login.html'; }, 800);
+            return;
+        }
         currentCustItem = {name, cat, basePrice};
         const opts = customData[cat];
         if(!opts || opts.length === 0) { addToCart(name, basePrice, []); return; }
@@ -943,6 +947,11 @@
     (function(){
         const btn = document.querySelector('#bookingForm button[type="submit"]');
         if(btn) btn.onclick = async function(){
+            if(!(window.API && API.isLoggedIn())) {
+                showToast('Please log in to make a reservation', 'lucide:alert-circle');
+                setTimeout(()=>{ window.location = 'login.html'; }, 800);
+                return;
+            }
             const name = document.getElementById('bookName').value.trim();
             const email = document.getElementById('bookEmail').value.trim();
             const date = document.getElementById('bookDate').value;
