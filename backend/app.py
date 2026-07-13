@@ -17,6 +17,7 @@ from flask import Flask, jsonify, request
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import joinedload
 from flask_jwt_extended import (
     JWTManager, create_access_token, create_refresh_token,
     jwt_required, get_jwt_identity, get_jwt,
@@ -83,6 +84,8 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-change-me')
 app.config['SQLALCHEMY_DATABASE_URI'] = _normalize_db_url(os.environ.get('DATABASE_URL')) or 'sqlite:///cafe.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# Reuse DB connections and drop stale ones (matters for a remote Postgres like Neon).
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True, 'pool_recycle': 280}
 
 # JWT
 app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET') or os.environ.get('SECRET_KEY', 'dev-secret-change-me')
@@ -300,6 +303,15 @@ class OfferItem(db.Model):
 # ============================================================
 # AUTH HELPERS
 # ============================================================
+# Full 600k-iteration pbkdf2 is very slow on a 0.1-vCPU free tier. 150k is still
+# strong for a demo and cuts login/registration time dramatically.
+PWD_METHOD = 'pbkdf2:sha256:150000'
+
+
+def hash_password(pw):
+    return generate_password_hash(pw, method=PWD_METHOD)
+
+
 def current_user_id():
     ident = get_jwt_identity()
     return int(ident) if ident is not None else None
@@ -460,7 +472,7 @@ def register():
     if User.query.filter_by(email=email).first():
         return jsonify({'success': False, 'message': 'Email already registered.'}), 409
 
-    new_user = User(username=username, email=email, password=generate_password_hash(password))
+    new_user = User(username=username, email=email, password=hash_password(password))
     db.session.add(new_user)
     db.session.flush()
 
@@ -528,7 +540,7 @@ def reset_password():
     user = User.query.filter_by(reset_token=token).first()
     if not user:
         return jsonify({'success': False, 'message': 'Invalid or expired token.'}), 400
-    user.password = generate_password_hash(password)
+    user.password = hash_password(password)
     user.reset_token = None
     db.session.commit()
     return jsonify({'success': True, 'message': 'Password reset successfully.'})
@@ -544,7 +556,7 @@ def change_password():
     new_password = data.get('new_password') or ''
     if len(new_password) < 4:
         return jsonify({'success': False, 'message': 'New password is too short.'}), 400
-    user.password = generate_password_hash(new_password)
+    user.password = hash_password(new_password)
     db.session.commit()
     return jsonify({'success': True, 'message': 'Password changed successfully.'})
 
@@ -554,7 +566,7 @@ def change_password():
 # ============================================================
 @app.route('/api/menu')
 def api_menu():
-    categories = Category.query.all()
+    categories = Category.query.options(joinedload(Category.items)).all()
     menu_dict = {}
     for cat in categories:
         menu_dict[cat.name] = {
@@ -1227,7 +1239,9 @@ def admin_delete_table(tid):
 @jwt_required(optional=True)
 def api_recommendations():
     from collections import Counter
-    sold_out = {i.name for i in MenuItem.query.filter_by(is_sold_out=True).all()}
+    all_items = MenuItem.query.options(joinedload(MenuItem.category)).all()
+    items_by_name = {mi.name: mi for mi in all_items}
+    sold_out = {mi.name for mi in all_items if mi.is_sold_out}
     pop = Counter()
     for o in Order.query.all():
         try:
@@ -1243,13 +1257,13 @@ def api_recommendations():
                 for it in json.loads(o.items):
                     base = it['name'].split(' [')[0]
                     fav_items[base] += it.get('quantity', 1)
-                    mi = MenuItem.query.filter_by(name=base).first()
+                    mi = items_by_name.get(base)
                     if mi and mi.category:
                         fav_cats[mi.category.name] += it.get('quantity', 1)
             except Exception:
                 pass
     scored = []
-    for mi in MenuItem.query.all():
+    for mi in all_items:
         if mi.name in sold_out:
             continue
         score = pop.get(mi.name, 0)
@@ -1560,17 +1574,21 @@ def seed_menu():
 
 
 def seed_admin():
-    if User.query.filter_by(role='Admin').first():
-        return
+    admin = User.query.filter_by(role='Admin').first()
     admin_password = os.environ.get('ADMIN_PASSWORD')
-    if not admin_password:
-        if IS_PRODUCTION:
-            print("[WARN] ADMIN_PASSWORD not set in production; skipping admin seed.")
-            return
+    if not admin_password and not IS_PRODUCTION:
         admin_password = 'admin123'  # local-dev convenience only
-        print("[WARN] ADMIN_PASSWORD not set; using dev default 'admin123' (do not use in production).")
+    if admin:
+        # Re-hash to the faster method so admin login isn't slow on low-CPU hosting.
+        if admin_password and not admin.password.startswith(PWD_METHOD):
+            admin.password = hash_password(admin_password)
+            db.session.commit()
+        return
+    if not admin_password:
+        print("[WARN] ADMIN_PASSWORD not set in production; skipping admin seed.")
+        return
     admin = User(username='admin', email=os.environ.get('ADMIN_EMAIL', 'admin@studio01.com'),
-                 password=generate_password_hash(admin_password), role='Admin')
+                 password=hash_password(admin_password), role='Admin')
     db.session.add(admin)
     db.session.flush()
     db.session.add(ReferralCode(code='ADMIN01', owner_id=admin.id))
