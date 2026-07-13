@@ -825,7 +825,7 @@
         }
 
         try {
-            const configRes = await fetch(apiUrl('/api/config'));
+            const configRes = await fetch(apiUrl('/api/config'), { cache: 'no-store' });
             const config = await configRes.json();
             if(!config.razorpay_available) {
                 showToast('Online payment is not configured on this site. Please select cash at counter or contact support.', 'lucide:info');
@@ -999,7 +999,7 @@
     };
     // If online payment isn't configured on the server, hide it and default to cash.
     try {
-        const cfg = await fetch(apiUrl('/api/config')).then(r => r.json());
+        const cfg = await fetch(apiUrl('/api/config'), { cache: 'no-store' }).then(r => r.json());
         if (!cfg.razorpay_available) {
             const onlineLabel = document.getElementById('payOnlineLabel');
             if (onlineLabel) onlineLabel.style.display = 'none';
