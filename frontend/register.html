@@ -76,9 +76,14 @@
     <script src="js/config.js"></script>
     <script src="js/api.js"></script>
     <script>
-        if (window.API && API.isLoggedIn()) {
-            window.location.href = API.isAdmin() ? 'admin-dashboard.html' : 'index.html';
-        }
+        (async function () {
+            if (!(window.API && API.isLoggedIn())) return;
+            try {
+                const r = await fetch(API.url('/api/user/profile'), { headers: { 'Authorization': 'Bearer ' + API.getAccess() } });
+                if (r.ok) { window.location.href = API.isAdmin() ? 'admin-dashboard.html' : 'index.html'; return; }
+                if (r.status === 401) API.clearSession();
+            } catch (e) {}
+        })();
         function showToast(msg, icon) {
             const t = document.createElement('div');
             t.className = 'toast';

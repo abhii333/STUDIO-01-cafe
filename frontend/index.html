@@ -473,6 +473,7 @@
             document.getElementById('logoutBtn').addEventListener('click', (e) => { e.preventDefault(); API.logout(); });
             updateCartUI();
         } else {
+            if (at && uRes.status === 401) API.clearSession(); // drop expired token so the nav is clean
             cart = {};
             updateCartUI();
         }
