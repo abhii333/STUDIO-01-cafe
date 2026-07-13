@@ -1007,10 +1007,11 @@
 
   function itemCard(x) {
     const img = x.image_url || FB;
-    return '<div class="menu-card"><img class="menu-card-img" src="'+esc(img)+'" alt="'+esc(x.name)+'" onerror="this.onerror=null;this.src=\'/static/placeholder.svg\'"><div class="menu-card-body"><div class="menu-card-name">'+esc(x.name)+'</div><div class="menu-card-desc">'+esc(x.description||'')+'</div><div class="menu-card-footer"><span class="menu-card-price">Rs.'+x.price+'</span></div></div></div>';
+    return '<div class="menu-card"><img class="menu-card-img" src="'+esc(img)+'" alt="'+esc(x.name)+'" onerror="this.onerror=null;this.src=\'/static/placeholder.svg\'"><div class="menu-card-body"><div class="menu-card-name">'+esc(x.name)+'</div><div class="menu-card-desc">'+esc(x.description||'')+'</div><div class="menu-card-footer"><span class="menu-card-price">Rs.'+x.price+'</span><button class="menu-card-add" data-name="'+esc(x.name)+'" data-price="'+x.price+'" data-cat="'+esc(x.category||'')+'" onclick="openCustomize(\''+esc(x.name).replace(/'/g,"\\'")+'\',\''+esc(x.category||'').replace(/'/g,"\\'")+'\','+x.price+')">+</button></div></div></div>';
   }
 
   (async function () {
+    if (!(window.API && API.isLoggedIn())) return; // Don't show recommendations to guests
     try {
       const headers = {}; if (window.API && API.getAccess()) headers['Authorization'] = 'Bearer ' + API.getAccess();
       const recs = await fetch(apiUrl('/api/recommendations'), { headers }).then(r => r.json());
