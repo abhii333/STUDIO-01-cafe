@@ -7,6 +7,7 @@ os.environ['AUTO_INIT_DB'] = '0'
 os.environ.setdefault('JWT_SECRET', 'test-jwt-secret-key-at-least-32-bytes-long')
 os.environ.setdefault('SECRET_KEY', 'test-secret-key-at-least-32-bytes-long!!')
 os.environ['ADMIN_PASSWORD'] = 'testadminpw'
+os.environ['RAZORPAY_KEY_SECRET'] = 'test_razorpay_secret'
 
 _db_fd, _db_path = tempfile.mkstemp(suffix='.db')
 os.environ['DATABASE_URL'] = 'sqlite:///' + _db_path

@@ -5,6 +5,8 @@ separately as static files (Netlify). Database: PostgreSQL (Neon) or SQLite for 
 """
 import os
 import json
+import hmac
+import hashlib
 import random
 import secrets
 from urllib.parse import quote
@@ -664,6 +666,29 @@ def create_razorpay_order():
                         "details": str(exc)}), 502
 
 
+def verify_razorpay_signature(order_id, payment_id, signature):
+    """Razorpay Standard Checkout signature check: HMAC-SHA256(order_id|payment_id, KEY_SECRET)."""
+    secret = os.environ.get('RAZORPAY_KEY_SECRET', '')
+    if not (secret and order_id and payment_id and signature):
+        return False
+    expected = hmac.new(secret.encode(), f"{order_id}|{payment_id}".encode(), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, str(signature))
+
+
+@app.route('/api/verify-payment', methods=['POST'])
+@jwt_required()
+def verify_payment():
+    data = request.get_json(silent=True) or {}
+    order_id = data.get('razorpay_order_id')
+    payment_id = data.get('razorpay_payment_id')
+    signature = data.get('razorpay_signature')
+    if not (order_id and payment_id and signature):
+        return jsonify({'success': False, 'message': 'Missing payment fields.'}), 400
+    if not verify_razorpay_signature(order_id, payment_id, signature):
+        return jsonify({'success': False, 'message': 'Payment signature verification failed.'}), 400
+    return jsonify({'success': True})
+
+
 @app.route('/api/order', methods=['POST'])
 @jwt_required()
 def api_order():
@@ -673,7 +698,14 @@ def api_order():
     coins_to_use = data.get('coins_to_use', 0)
     payment_id = data.get('payment_id')
     payment_method = data.get('payment_method')
+    razorpay_order_id = data.get('razorpay_order_id')
+    razorpay_signature = data.get('razorpay_signature')
     user_id = current_user_id()
+
+    # A claimed online payment must pass server-side signature verification before we mark it Paid.
+    if payment_id:
+        if not verify_razorpay_signature(razorpay_order_id, payment_id, razorpay_signature):
+            return jsonify({'success': False, 'message': 'Payment could not be verified.'}), 400
 
     try:
         if coins_to_use > 0:

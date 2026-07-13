@@ -869,7 +869,27 @@
                 description: 'Order Payment',
                 order_id: razorpayOrder.id,
                 handler: async function(response) {
-                    submitFinalOrder(items, total, coinsToUse, response.razorpay_payment_id, 'Razorpay');
+                    // Verify the payment signature server-side before finalizing the order.
+                    try {
+                        const vres = await fetch(apiUrl('/api/verify-payment'), {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API.getAccess()},
+                            body: JSON.stringify({
+                                razorpay_order_id: response.razorpay_order_id,
+                                razorpay_payment_id: response.razorpay_payment_id,
+                                razorpay_signature: response.razorpay_signature
+                            })
+                        });
+                        const vdata = await vres.json();
+                        if(!vres.ok || !vdata.success) {
+                            showToast('Payment could not be verified. If money was deducted, contact support.', 'lucide:x-circle');
+                            return;
+                        }
+                    } catch(e) {
+                        showToast('Payment verification failed. Please contact support.', 'lucide:x-circle');
+                        return;
+                    }
+                    submitFinalOrder(items, total, coinsToUse, response.razorpay_payment_id, 'Razorpay', response.razorpay_order_id, response.razorpay_signature);
                 },
                 prefill: {
                     name: sessionStorage.getItem('username') || 'Customer',
@@ -893,12 +913,12 @@
         }
     }
 
-    async function submitFinalOrder(items, total, coins_to_use, payment_id) {
+    async function submitFinalOrder(items, total, coins_to_use, payment_id, payment_label, razorpay_order_id, razorpay_signature) {
         try {
             const res = await fetch(apiUrl('/api/order'), {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API.getAccess()},
-                body: JSON.stringify({ items, total, coins_to_use, payment_id, payment_method: getSelectedPaymentMethod() })
+                body: JSON.stringify({ items, total, coins_to_use, payment_id, payment_method: getSelectedPaymentMethod(), razorpay_order_id, razorpay_signature })
             });
             const data = await res.json();
             if(data.success === false) {
