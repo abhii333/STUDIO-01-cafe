@@ -6,7 +6,7 @@
 window.STUDIO01_CONFIG = {
   // After deploying the backend to Render, replace this with your Render URL,
   // e.g. "https://studio01-api.onrender.com"
-  API_BASE_PROD: "https://YOUR-RENDER-APP.onrender.com"
+  API_BASE_PROD: "https://studio01-api.onrender.com"
 };
 
 window.API_BASE = ["localhost", "127.0.0.1", ""].indexOf(window.location.hostname) !== -1
