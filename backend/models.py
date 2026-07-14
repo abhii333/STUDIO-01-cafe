@@ -37,6 +37,10 @@ class Order(db.Model):
     payment_id = db.Column(db.String(100), nullable=True)
     payment_method = db.Column(db.String(100), nullable=True)
     share_reward_claimed = db.Column(db.Boolean, default=False)
+    # Staff POS metadata (NULL for customer/online orders).
+    channel = db.Column(db.String(20), nullable=True)        # 'online' | 'pos-dinein' | 'pos-takeaway'
+    customer_label = db.Column(db.String(80), nullable=True)  # walk-in customer name (POS)
+    table_label = db.Column(db.String(20), nullable=True)     # table number for dine-in (POS)
 
 
 class Reservation(db.Model):

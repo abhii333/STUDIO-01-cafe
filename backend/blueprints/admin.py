@@ -26,13 +26,80 @@ MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5 MB
 @admin_required
 def api_admin_orders():
     orders = Order.query.order_by(Order.id.desc()).all()
-    return jsonify([{
-        "order_id": o.order_id,
-        "customer_name": (User.query.get(o.user_id).username if o.user_id and User.query.get(o.user_id) else "Guest"),
-        "items": json.loads(o.items), "total": o.total, "currency_paid": o.currency_paid,
-        "date_time": o.date_time, "status": o.status, "payment_id": o.payment_id,
-        "payment_method": o.payment_method,
-    } for o in orders])
+    out = []
+    for o in orders:
+        name = None
+        if o.user_id:
+            u = User.query.get(o.user_id)
+            name = u.username if u else None
+        # POS/walk-in orders have no account — fall back to the label staff typed.
+        name = name or o.customer_label or "Walk-in"
+        out.append({
+            "order_id": o.order_id, "customer_name": name,
+            "items": json.loads(o.items), "total": o.total, "currency_paid": o.currency_paid,
+            "date_time": o.date_time, "status": o.status, "payment_id": o.payment_id,
+            "payment_method": o.payment_method,
+            "channel": o.channel, "table": o.table_label,
+        })
+    return jsonify(out)
+
+
+@admin_bp.route('/api/admin/pos-order', methods=['POST'])
+@admin_required
+def pos_order():
+    """Staff Point-of-Sale: create a walk-in / dine-in / takeaway order for a guest.
+
+    Deliberately separate from the customer /api/order flow — no loyalty coins,
+    no customer account, no signature checks. This is how staff ring up orders.
+    """
+    d = request.get_json(silent=True) or {}
+    items, total = [], 0.0
+    for it in (d.get('items') or []):
+        if not isinstance(it, dict):
+            continue
+        name = str(it.get('name', '')).strip()[:120]
+        try:
+            price = float(it.get('price', 0) or 0)
+            qty = int(it.get('quantity', 1) or 1)
+        except (TypeError, ValueError):
+            continue
+        if not name or qty <= 0 or price < 0:
+            continue
+        qty = min(qty, 99)
+        items.append({'name': name, 'price': price, 'quantity': qty})
+        total += price * qty
+    if not items:
+        return jsonify({'success': False, 'message': 'Add at least one item to the order.'}), 400
+
+    order_type = (d.get('order_type') or 'dine-in').strip().lower()
+    channel = 'pos-dinein' if order_type == 'dine-in' else 'pos-takeaway'
+    table_label = (d.get('table_number') or '').strip()[:20] or None
+    customer_label = (d.get('customer_name') or '').strip()[:80] or None
+    payment_method = (d.get('payment_method') or 'Cash').strip()[:100]
+    mark_paid = bool(d.get('mark_paid', True))
+    total = round(total, 2)
+
+    max_id = db.session.query(db.func.max(Order.order_id)).scalar()
+    new_oid = (max_id or 0) + 1
+    time_now = datetime.now().strftime("%d-%m-%Y %I:%M %p")
+    order = Order(
+        order_id=new_oid, user_id=None, items=json.dumps(items), total=total,
+        coins_used=0, currency_paid=total, date_time=time_now,
+        status='Paid' if mark_paid else 'Pending',
+        payment_id=(f"counter-{int(datetime.utcnow().timestamp())}" if mark_paid else None),
+        payment_method=payment_method, channel=channel,
+        customer_label=customer_label, table_label=table_label,
+    )
+    db.session.add(order)
+    try:
+        db.session.add(OrderAudit(
+            order_id=new_oid, admin_id=current_user_id(), action='pos_order',
+            meta=json.dumps({'channel': channel, 'table': table_label,
+                             'customer': customer_label, 'payment': payment_method, 'paid': mark_paid})))
+    except Exception as exc:
+        maybe_capture_exception(exc)
+    db.session.commit()
+    return jsonify({'success': True, 'order_id': new_oid, 'total': total, 'status': order.status})
 
 
 @admin_bp.route('/api/admin/update-order-status', methods=['POST'])

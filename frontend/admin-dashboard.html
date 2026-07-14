@@ -43,7 +43,27 @@
         .an-stat-val{font-family:var(--font-h);font-size:1.5rem;font-weight:800}
         .an-bar-track{height:8px;background:var(--cream);border-radius:6px;overflow:hidden;margin-top:4px}
         .an-bar-fill{height:100%;background:var(--terracotta)}
-        @media(max-width:900px){.grid{grid-template-columns:1fr}}
+        /* POS */
+        .pos-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:20px;align-items:start}
+        .pos-cats{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+        .pos-cat{padding:6px 12px;border-radius:999px;border:1px solid var(--border);background:var(--card);font-size:.78rem;font-weight:600;color:var(--text-muted);cursor:pointer}
+        .pos-cat.active{background:var(--espresso);color:#fff;border-color:var(--espresso)}
+        .pos-items{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+        .pos-item{border:1px solid var(--border);border-radius:12px;padding:12px;cursor:pointer;transition:all .15s;background:var(--card)}
+        .pos-item:hover{border-color:var(--terracotta);box-shadow:0 4px 14px rgba(196,112,75,.12);transform:translateY(-1px)}
+        .pos-item .n{font-weight:600;font-size:.85rem;line-height:1.3;margin-bottom:6px}
+        .pos-item .p{color:var(--terracotta);font-weight:700;font-size:.85rem}
+        .pos-item.out{opacity:.45;pointer-events:none}
+        .ticket{position:sticky;top:88px}
+        .ticket-line{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)}
+        .ticket-line .tn{flex:1;font-size:.85rem}
+        .qty{display:inline-flex;align-items:center;gap:8px}
+        .qty button{width:24px;height:24px;border-radius:50%;border:1px solid var(--border);background:var(--cream);cursor:pointer;font-size:.95rem;line-height:1}
+        .seg{display:inline-flex;border:1px solid var(--border);border-radius:999px;overflow:hidden}
+        .seg button{padding:7px 16px;border:none;background:var(--card);cursor:pointer;font-family:inherit;font-size:.8rem;font-weight:600;color:var(--text-muted)}
+        .seg button.active{background:var(--terracotta);color:#fff}
+        .ch-tag{display:inline-block;padding:2px 8px;border-radius:6px;font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em;background:rgba(196,112,75,.12);color:var(--terracotta);margin-left:6px}
+        @media(max-width:900px){.grid{grid-template-columns:1fr}.pos-grid{grid-template-columns:1fr}}
     </style>
 </head>
 <body>
@@ -74,6 +94,7 @@
         </div>
 
         <div class="tabs">
+            <button class="tab" onclick="switchTab('pos', this)">New Order (POS)</button>
             <button class="tab" onclick="switchTab('analytics', this)">Analytics</button>
             <button class="tab active" onclick="switchTab('orders', this)">Orders</button>
             <button class="tab" onclick="switchTab('menu', this)">Menu</button>
@@ -83,6 +104,41 @@
             <button class="tab" onclick="switchTab('photos', this)">Gallery</button>
             <button class="tab" onclick="switchTab('res', this)">Reservations</button>
             <button class="tab" onclick="switchTab('audits', this)">Audits</button>
+        </div>
+
+        <div id="pos-sec" class="section">
+            <div class="pos-grid">
+                <div class="card">
+                    <h3>Menu</h3>
+                    <div class="pos-cats" id="posCats"></div>
+                    <div class="pos-items" id="posItems"><p style="color:var(--text-muted)">Loading menu…</p></div>
+                </div>
+                <div class="card ticket">
+                    <h3>Order Ticket</h3>
+                    <div style="margin:12px 0"><div class="seg" id="posType">
+                        <button data-type="dine-in" class="active">Dine-in</button>
+                        <button data-type="takeaway">Takeaway</button>
+                    </div></div>
+                    <input id="posTable" placeholder="Table number (e.g. T5)">
+                    <input id="posCustomer" placeholder="Customer name (optional)">
+                    <div id="posTicket" style="margin:10px 0"><p style="color:var(--text-muted);font-size:.85rem">Tap menu items to add them.</p></div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin:12px 0;padding-top:12px;border-top:2px solid var(--border)">
+                        <strong style="font-family:var(--font-h);font-size:1.2rem">Total</strong>
+                        <strong style="font-family:var(--font-h);font-size:1.2rem" id="posTotal">₹0</strong>
+                    </div>
+                    <select id="posPayment">
+                        <option value="Cash">Cash</option>
+                        <option value="Card">Card</option>
+                        <option value="UPI">UPI</option>
+                    </select>
+                    <label style="font-size:.85rem;display:flex;align-items:center;gap:8px;margin-bottom:12px"><input type="checkbox" id="posPaid" checked style="width:auto;margin:0"> Mark as paid now</label>
+                    <div id="posMsg" style="font-size:.8rem;color:var(--text-muted);margin-bottom:8px"></div>
+                    <div style="display:flex;gap:8px">
+                        <button class="btn" style="flex:1" onclick="submitPosOrder()">Place Order</button>
+                        <button class="btn" style="background:#999" onclick="clearPosTicket()">Clear</button>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div id="analytics-sec" class="section">
@@ -263,8 +319,12 @@
                         <span style="font-size:.65rem;color:${i <= currIdx ? 'var(--espresso)' : 'var(--text-muted)'};text-transform:uppercase;font-weight:600">${s}</span>
                     </div>`).join('');
                 const paymentLabel = o.payment_method ? `<p style="margin-top:8px"><strong>Payment:</strong> ${esc(o.payment_method)}</p>` : '';
+                let chTag = '';
+                if (o.channel === 'pos-dinein') chTag = `<span class="ch-tag">Dine-in${o.table ? ' · ' + esc(o.table) : ''}</span>`;
+                else if (o.channel === 'pos-takeaway') chTag = `<span class="ch-tag">Takeaway</span>`;
+                else chTag = `<span class="ch-tag" style="background:rgba(0,123,255,.1);color:#007bff">Online</span>`;
                 return `<div class="order">
-                    <div class="order-head"><strong>#${o.order_id} by ${esc(o.customer_name)}</strong><span class="badge badge-${(o.status || '').toLowerCase()}">${esc(o.status)}</span></div>
+                    <div class="order-head"><strong>#${o.order_id} · ${esc(o.customer_name)}${chTag}</strong><span class="badge badge-${(o.status || '').toLowerCase()}">${esc(o.status)}</span></div>
                     <div class="order-body">
                         <div style="display:flex;align-items:center;justify-content:space-between;margin:16px 0 24px;position:relative">
                             <div style="position:absolute;top:14px;left:30px;right:30px;height:2px;background:var(--border);z-index:0"></div>${trackerHtml}
@@ -297,6 +357,7 @@
             document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
             el.classList.add('active');
             document.getElementById(id + '-sec').classList.add('active');
+            if (id === 'pos') loadPos();
             if (id === 'analytics') loadAnalytics();
             if (id === 'menu') loadMenu();
             if (id === 'offers') loadOffers();
@@ -547,6 +608,103 @@
             if (res.ok) { document.getElementById('phUrl').value = ''; document.getElementById('phCaption').value = ''; msg.textContent = 'Added!'; loadPhotos(); } else { msg.textContent = 'Failed.'; }
         }
         async function deletePhoto(id) { await API.authFetch('/api/admin/photos/' + id, { method: 'DELETE' }); loadPhotos(); }
+
+        // ---- Point of Sale (staff order taking) ----
+        let _posMenu = {};        // category -> {itemName: {price, sold_out}}
+        let _posCat = 'All';
+        let _posTicket = {};      // name -> {name, price, qty}
+        let _posType = 'dine-in';
+
+        async function loadPos() {
+            try {
+                const data = await API.apiFetch('/api/menu').then(r => r.json());
+                _posMenu = data.menu || {};
+                renderPosCats();
+                renderPosItems();
+            } catch (e) { document.getElementById('posItems').innerHTML = '<p style="color:var(--text-muted)">Could not load menu.</p>'; }
+        }
+        function renderPosCats() {
+            const cats = ['All', ...Object.keys(_posMenu)];
+            document.getElementById('posCats').innerHTML = cats.map(c =>
+                `<button class="pos-cat ${c === _posCat ? 'active' : ''}" data-cat="${esc(c)}">${esc(c)}</button>`).join('');
+            document.querySelectorAll('#posCats .pos-cat').forEach(b => b.onclick = () => { _posCat = b.dataset.cat; renderPosCats(); renderPosItems(); });
+        }
+        function renderPosItems() {
+            const rows = [];
+            Object.entries(_posMenu).forEach(([cat, items]) => {
+                if (_posCat !== 'All' && _posCat !== cat) return;
+                Object.entries(items).forEach(([name, info]) => {
+                    rows.push(`<div class="pos-item ${info.sold_out ? 'out' : ''}" data-name="${esc(name)}" data-price="${info.price}">
+                        <div class="n">${esc(name)}</div><div class="p">₹${info.price}${info.sold_out ? ' · SOLD OUT' : ''}</div></div>`);
+                });
+            });
+            const wrap = document.getElementById('posItems');
+            wrap.innerHTML = rows.length ? rows.join('') : '<p style="color:var(--text-muted)">No items.</p>';
+            wrap.querySelectorAll('.pos-item').forEach(el => el.onclick = () => addToTicket(el.dataset.name, parseFloat(el.dataset.price)));
+        }
+        function addToTicket(name, price) {
+            if (_posTicket[name]) _posTicket[name].qty += 1;
+            else _posTicket[name] = { name, price, qty: 1 };
+            renderTicket();
+        }
+        function ticketQty(name, delta) {
+            if (!_posTicket[name]) return;
+            _posTicket[name].qty += delta;
+            if (_posTicket[name].qty <= 0) delete _posTicket[name];
+            renderTicket();
+        }
+        function renderTicket() {
+            const lines = Object.values(_posTicket);
+            const el = document.getElementById('posTicket');
+            if (!lines.length) { el.innerHTML = '<p style="color:var(--text-muted);font-size:.85rem">Tap menu items to add them.</p>'; }
+            else {
+                el.innerHTML = lines.map(l => `<div class="ticket-line">
+                    <span class="tn">${esc(l.name)}<br><small style="color:var(--text-muted)">₹${l.price}</small></span>
+                    <span class="qty"><button data-dec="${esc(l.name)}">−</button><strong>${l.qty}</strong><button data-inc="${esc(l.name)}">+</button></span>
+                    <strong style="width:64px;text-align:right">₹${l.price * l.qty}</strong></div>`).join('');
+                el.querySelectorAll('[data-inc]').forEach(b => b.onclick = () => ticketQty(b.dataset.inc, 1));
+                el.querySelectorAll('[data-dec]').forEach(b => b.onclick = () => ticketQty(b.dataset.dec, -1));
+            }
+            const total = lines.reduce((a, l) => a + l.price * l.qty, 0);
+            document.getElementById('posTotal').textContent = '₹' + total;
+        }
+        function clearPosTicket() {
+            _posTicket = {};
+            document.getElementById('posTable').value = '';
+            document.getElementById('posCustomer').value = '';
+            document.getElementById('posMsg').textContent = '';
+            renderTicket();
+        }
+        document.querySelectorAll('#posType button').forEach(b => b.onclick = () => {
+            _posType = b.dataset.type;
+            document.querySelectorAll('#posType button').forEach(x => x.classList.toggle('active', x === b));
+            document.getElementById('posTable').style.display = _posType === 'dine-in' ? 'block' : 'none';
+        });
+        async function submitPosOrder() {
+            const msg = document.getElementById('posMsg');
+            const items = Object.values(_posTicket).map(l => ({ name: l.name, price: l.price, quantity: l.qty }));
+            if (!items.length) { msg.textContent = 'Add at least one item.'; return; }
+            const body = {
+                items,
+                order_type: _posType,
+                table_number: _posType === 'dine-in' ? document.getElementById('posTable').value.trim() : '',
+                customer_name: document.getElementById('posCustomer').value.trim(),
+                payment_method: document.getElementById('posPayment').value,
+                mark_paid: document.getElementById('posPaid').checked,
+            };
+            const res = await API.authFetch('/api/admin/pos-order', { method: 'POST', json: body });
+            const d = await res.json();
+            if (res.ok && d.success) {
+                clearPosTicket();
+                msg.style.color = '#28a745';
+                msg.textContent = `Order #${d.order_id} placed (${d.status}).`;
+                setTimeout(() => { msg.style.color = 'var(--text-muted)'; msg.textContent = ''; }, 4000);
+                loadData();  // refresh the orders board
+            } else {
+                msg.style.color = '#dc3545';
+                msg.textContent = d.message || 'Could not place order.';
+            }
+        }
 
         // ---- Analytics (Task 7) ----
         let _analyticsCharts = {};

@@ -151,6 +151,8 @@
         const params = new URLSearchParams(location.search);
         let code = (params.get('code') || '').toUpperCase();
 
+        // Staff accounts don't join customer group orders — send them to their dashboard.
+        if (window.API && API.isLoggedIn() && API.isAdmin()) { location.replace('admin-dashboard.html'); }
         // Require login; preserve this exact page (with code) as the returnUrl.
         if (!(window.API && API.isLoggedIn())) {
             API.setReturnUrl('group-order.html' + location.search);

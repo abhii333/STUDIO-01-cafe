@@ -27,7 +27,7 @@ from extensions import jwt, limiter
 from services import IS_PRODUCTION
 # Re-export seeding (tests/conftest import these from `app`).
 from seed import (seed_menu, seed_admin, seed_tables, seed_badges, seed_events,  # noqa: F401
-                  normalize_referral_codes, fix_broken_menu_images)
+                  normalize_referral_codes, fix_broken_menu_images, ensure_schema)
 from blueprints.auth import auth_bp
 from blueprints.orders import orders_bp
 from blueprints.admin import admin_bp
@@ -141,6 +141,7 @@ def get_config():
 def init_db():
     with app.app_context():
         db.create_all()
+        ensure_schema()  # add any columns missing on an already-seeded DB
         seed_menu()
         seed_tables()
         seed_badges()

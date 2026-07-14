@@ -87,6 +87,8 @@
     <script src="js/config.js"></script>
     <script src="js/api.js"></script>
     <script>
+        // Staff accounts have their own dashboard — never the customer loyalty one.
+        if (window.API && API.isLoggedIn() && API.isAdmin()) { location.replace('admin-dashboard.html'); }
         if (!API.requireAuth()) { /* redirected to login */ }
 
         function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }

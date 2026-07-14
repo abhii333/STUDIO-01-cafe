@@ -394,8 +394,20 @@
     let special = null;
     let userCoins = 0;
     let isLoggedIn = false;
+    let isAdminPreview = false;
     let coinsToUse = 0;
     let paymentMethod = 'online';
+
+    // Shown to staff who open the customer storefront via "Preview Storefront".
+    function showAdminPreviewBanner() {
+        if (document.getElementById('adminPreviewBar')) return;
+        const bar = document.createElement('div');
+        bar.id = 'adminPreviewBar';
+        bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2000;background:var(--espresso);color:#fff;font-size:.8rem;font-weight:600;letter-spacing:.02em;padding:8px 16px;display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 2px 10px rgba(0,0,0,.15)';
+        bar.innerHTML = '<iconify-icon icon="lucide:eye" width="15"></iconify-icon> Staff preview — this is the customer view. Ordering is disabled here; ring up orders in the POS. <a href="admin-dashboard.html" style="color:#fff;text-decoration:underline;margin-left:6px">Back to Dashboard →</a>';
+        document.body.appendChild(bar);
+        document.body.style.paddingTop = '38px';
+    }
 
     function getSelectedPaymentMethod() {
         const selected = document.querySelector('input[name="paymentMethod"]:checked');
@@ -465,7 +477,19 @@
         const uRes = at
             ? await fetch(apiUrl('/api/user/profile'), { headers: { 'Authorization': 'Bearer ' + at } })
             : { ok: false };
-        if(uRes.ok) {
+        if(uRes.ok && (window.API && API.isAdmin())) {
+            // ADMIN PREVIEW MODE: staff can look at the storefront but never shop
+            // here — ordering happens in the dashboard POS. No cart, coins, or
+            // customer dashboard link.
+            isLoggedIn = true;
+            isAdminPreview = true;
+            cart = {};
+            document.getElementById('navActions').innerHTML = `
+                <a href="admin-dashboard.html" class="nav-btn nav-coin"><iconify-icon icon="lucide:layout-dashboard" width="14"></iconify-icon> Dashboard</a>
+                <a href="#" class="nav-btn" id="logoutBtn">Logout</a>`;
+            document.getElementById('logoutBtn').addEventListener('click', (e) => { e.preventDefault(); API.logout(); });
+            showAdminPreviewBanner();
+        } else if(uRes.ok) {
             isLoggedIn = true;
             const u = await uRes.json();
             userCoins = u.coins;
@@ -613,6 +637,11 @@
     // Customize Modal
     let currentCustItem = {};
     function openCustomize(name, cat, basePrice) {
+        // Staff previewing the storefront can't place customer orders here.
+        if (isAdminPreview) {
+            showToast('Ordering is disabled in staff preview — use the POS in your dashboard.', 'lucide:info');
+            return;
+        }
         // Guests can build a cart (saved to sessionStorage); login is required
         // only at checkout.
         currentCustItem = {name, cat, basePrice};
@@ -811,6 +840,10 @@
     }
 
     async function placeOrder() {
+        if (isAdminPreview) {
+            showToast('Staff use the POS in the dashboard to take orders.', 'lucide:info');
+            return;
+        }
         const items = Object.values(cart).map(i => ({name: i.name, price: i.price, quantity: i.qty}));
         const total = items.reduce((a, i) => a + (i.price * i.quantity), 0);
 

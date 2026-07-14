@@ -6,7 +6,7 @@ from urllib.parse import quote
 from datetime import datetime
 
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import jwt_required
+from flask_jwt_extended import jwt_required, get_jwt
 from sqlalchemy.orm import joinedload
 from sqlalchemy.exc import IntegrityError
 
@@ -147,9 +147,20 @@ def submit_review(oid):
     return jsonify({"success": True})
 
 
+def _block_admins():
+    """Customer checkout is for customers only. Staff use the dashboard POS."""
+    if get_jwt().get('role') == 'Admin':
+        return jsonify({'success': False,
+                        'message': 'Staff accounts take orders from the dashboard POS, not the customer checkout.'}), 403
+    return None
+
+
 @orders_bp.route('/api/create-razorpay-order', methods=['POST'])
 @jwt_required()
 def create_razorpay_order():
+    blocked = _block_admins()
+    if blocked:
+        return blocked
     data = request.get_json(silent=True) or {}
     total = data.get('total', 0)
     coins_to_use = data.get('coins_to_use', 0)
@@ -189,6 +200,9 @@ def verify_payment():
 @orders_bp.route('/api/order', methods=['POST'])
 @jwt_required()
 def api_order():
+    blocked = _block_admins()
+    if blocked:
+        return blocked
     data = request.get_json(silent=True) or {}
     items = data.get('items', [])
     total = data.get('total', 0)

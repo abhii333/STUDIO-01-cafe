@@ -5,9 +5,41 @@ rows, so calling them on every boot is safe.
 """
 import os
 
+from sqlalchemy import inspect as sa_inspect, text
+
 from models import db, Category, MenuItem, User, ReferralCode, Table, Badge, Event
 from helpers import hash_password, PWD_METHOD
 from services import IS_PRODUCTION
+
+
+def ensure_schema():
+    """Add columns introduced after the first release to existing databases.
+
+    ``create_all()`` only creates missing *tables*, never missing *columns*, so
+    for the few new nullable columns on the ``order`` table we ALTER them in when
+    absent. Safe (only adds what's missing) and idempotent — works on SQLite and
+    Postgres alike. ``order`` is a reserved word, hence the quoting.
+    """
+    try:
+        insp = sa_inspect(db.engine)
+        if 'order' not in insp.get_table_names():
+            return
+        existing = {c['name'] for c in insp.get_columns('order')}
+        additions = {
+            'channel': 'VARCHAR(20)',
+            'customer_label': 'VARCHAR(80)',
+            'table_label': 'VARCHAR(20)',
+        }
+        added = False
+        for col, ddl in additions.items():
+            if col not in existing:
+                db.session.execute(text(f'ALTER TABLE "order" ADD COLUMN {col} {ddl}'))
+                added = True
+        if added:
+            db.session.commit()
+    except Exception as exc:  # pragma: no cover - never block boot on a migration hiccup
+        db.session.rollback()
+        print(f"[WARN] ensure_schema failed: {exc}")
 
 
 def seed_menu():
