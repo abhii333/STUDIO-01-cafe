@@ -44,17 +44,17 @@ def seed_menu():
         "Thai Green Curry Bowl": "https://images.unsplash.com/photo-1455619452474-d2be8b1e70cd?w=400&fit=crop",
         # Desserts
         "Sizzling Walnut Brownie": "https://images.unsplash.com/photo-1564355808539-22fda35bed7e?w=400&fit=crop",
-        "Classic Gulab Jamun": "https://images.unsplash.com/photo-1666190070080-5dee67e23cf0?w=400&fit=crop",
+        "Classic Gulab Jamun": "https://upload.wikimedia.org/wikipedia/commons/5/56/Gulab_Jamun.jpg",
         "Rasmalai": "https://images.unsplash.com/photo-1645177628172-a94c1f96e6db?w=400&fit=crop",
         "Dark Chocolate Ganache Tart": "https://images.unsplash.com/photo-1551024506-0bccd828d307?w=400&fit=crop",
         "Saffron Infused Panna Cotta": "https://images.unsplash.com/photo-1488477181946-6428a0291777?w=400&fit=crop",
         # Beverages
         "Classic Cold Coffee": "https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=400&fit=crop",
         "Fresh Lime Soda": "https://images.unsplash.com/photo-1556881286-fc6915169721?w=400&fit=crop",
-        "Almond Saffron Milk": "https://images.unsplash.com/photo-1578899544867-3df4946b9e27?w=400&fit=crop",
+        "Almond Saffron Milk": "https://upload.wikimedia.org/wikipedia/commons/3/38/Glass_of_milk.jpg",
         "Cold Brew Coffee": "https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=400&fit=crop",
         "Hibiscus Iced Tea": "https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=400&fit=crop",
-        "Turmeric Oat Latte": "https://images.unsplash.com/photo-1578899544867-3df4946b9e27?w=400&fit=crop",
+        "Turmeric Oat Latte": "https://images.unsplash.com/photo-1541167760496-1628856ab772?w=400&fit=crop",
     }
 
     # Ordered dict — categories seeded in this order so the frontend menu starts from Starters.
@@ -195,6 +195,41 @@ def seed_events():
         db.session.add(Event(title=title, description=desc, date=date, time=time, duration_minutes=dur,
                              capacity=cap, price=price, image_url=img, is_active=True))
     db.session.commit()
+
+
+def fix_broken_menu_images():
+    """Repair menu items still pointing at image URLs that 404.
+
+    Runs on boot so already-seeded databases (where seed_menu skips existing
+    items) get the corrected images without a manual re-seed. Only rows whose
+    image_url is a known-broken URL are touched, so admin-edited images are safe.
+    """
+    # Old (404) URL -> working replacement.
+    replacements = {
+        # Turmeric Oat Latte + Almond Saffron Milk both used this dead Unsplash photo.
+        "https://images.unsplash.com/photo-1578899544867-3df4946b9e27?w=400&fit=crop":
+            "https://images.unsplash.com/photo-1541167760496-1628856ab772?w=400&fit=crop",
+        # Gulab Jamun dead Unsplash photo.
+        "https://images.unsplash.com/photo-1666190070080-5dee67e23cf0?w=400&fit=crop":
+            "https://upload.wikimedia.org/wikipedia/commons/5/56/Gulab_Jamun.jpg",
+    }
+    # A few items need item-specific images (not just a 1:1 URL swap).
+    by_name = {
+        "Almond Saffron Milk": "https://upload.wikimedia.org/wikipedia/commons/3/38/Glass_of_milk.jpg",
+        "Classic Gulab Jamun": "https://upload.wikimedia.org/wikipedia/commons/5/56/Gulab_Jamun.jpg",
+        "Turmeric Oat Latte": "https://images.unsplash.com/photo-1541167760496-1628856ab772?w=400&fit=crop",
+    }
+    broken_urls = set(replacements.keys())
+    changed = False
+    for item in MenuItem.query.all():
+        # Only fix rows that still carry a known-broken URL (or are empty).
+        if item.image_url in broken_urls or not item.image_url:
+            new_url = by_name.get(item.name) or replacements.get(item.image_url)
+            if new_url and new_url != item.image_url:
+                item.image_url = new_url
+                changed = True
+    if changed:
+        db.session.commit()
 
 
 def normalize_referral_codes():

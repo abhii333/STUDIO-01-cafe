@@ -27,7 +27,7 @@ from extensions import jwt, limiter
 from services import IS_PRODUCTION
 # Re-export seeding (tests/conftest import these from `app`).
 from seed import (seed_menu, seed_admin, seed_tables, seed_badges, seed_events,  # noqa: F401
-                  normalize_referral_codes)
+                  normalize_referral_codes, fix_broken_menu_images)
 from blueprints.auth import auth_bp
 from blueprints.orders import orders_bp
 from blueprints.admin import admin_bp
@@ -147,6 +147,7 @@ def init_db():
         seed_events()
         seed_admin()
         normalize_referral_codes()
+        fix_broken_menu_images()
 
 
 # Auto-init on import when explicitly enabled (set AUTO_INIT_DB=1 on Render).
