@@ -74,7 +74,7 @@
             if (!(window.API && API.isLoggedIn())) return;
             try {
                 const r = await fetch(API.url('/api/user/profile'), { headers: { 'Authorization': 'Bearer ' + API.getAccess() } });
-                if (r.ok) { window.location.href = API.isAdmin() ? 'admin-dashboard.html' : 'index.html'; return; }
+                if (r.ok) { API.goPostLogin(API.getUser()); return; }
                 if (r.status === 401) API.clearSession(); // stale/expired token — drop it and show the form
             } catch (e) { /* backend asleep/unreachable — just show the login form */ }
         })();
@@ -95,19 +95,20 @@
             const password = document.getElementById('password').value;
             if (!username || !password) { showToast('Please enter username and password', 'lucide:alert-circle'); return; }
             btn.disabled = true;
-            try {
-                const res = await API.apiFetch('/api/auth/login', { method: 'POST', json: { username, password } });
-                const data = await res.json();
-                if (!res.ok) { showToast(data.message || 'Invalid credentials', 'lucide:alert-circle'); btn.disabled = false; return; }
-                API.setSession(data);
-                showToast('Welcome back!', 'lucide:check-circle');
-                setTimeout(() => {
-                    window.location.href = (data.user && data.user.role === 'Admin') ? 'admin-dashboard.html' : 'index.html';
-                }, 500);
-            } catch (err) {
-                showToast('Could not reach the server. Try again.', 'lucide:x-circle');
-                btn.disabled = false;
-            }
+            // handleApiCall surfaces network errors, invalid credentials (401),
+            // and rate-limit responses (429) as toasts automatically.
+            const res = await API.handleApiCall(function () {
+                return API.apiFetch('/api/auth/login', { method: 'POST', json: { username, password } });
+            });
+            if (!res || !res.ok) { btn.disabled = false; return; }
+            const data = await res.json();
+            API.setSession(data);
+            // Fold any cart the user built as a guest into their account cart.
+            API.adoptGuestCart();
+            showToast('Welcome back!', 'lucide:check-circle');
+            // Role-based routing: admins -> admin dashboard, customers -> the
+            // page they were trying to reach (returnUrl) or the storefront.
+            setTimeout(() => { API.goPostLogin(data.user); }, 500);
         });
     </script>
 </body>

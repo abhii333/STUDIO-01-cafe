@@ -8,6 +8,9 @@ os.environ.setdefault('JWT_SECRET', 'test-jwt-secret-key-at-least-32-bytes-long'
 os.environ.setdefault('SECRET_KEY', 'test-secret-key-at-least-32-bytes-long!!')
 os.environ['ADMIN_PASSWORD'] = 'testadminpw'
 os.environ['RAZORPAY_KEY_SECRET'] = 'test_razorpay_secret'
+# Disable rate limiting during tests: the suite makes >5 login calls from the
+# same client address, which would otherwise trip the "5 per minute" limit.
+os.environ['RATELIMIT_ENABLED'] = '0'
 
 _db_fd, _db_path = tempfile.mkstemp(suffix='.db')
 os.environ['DATABASE_URL'] = 'sqlite:///' + _db_path

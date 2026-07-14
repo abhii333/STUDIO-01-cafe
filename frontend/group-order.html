@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Group Order — STUDIO 01</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;800&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+    <style>
+        *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+        :root{--espresso:#1C1410;--cream:#FAF7F2;--terracotta:#C4704B;--border:#E8E0D6;--text-dark:#2C2420;--text-muted:#8B7D72;--card:#FFF;--font-h:'Syne',sans-serif;--font-b:'Inter',sans-serif}
+        body{font-family:var(--font-b);background:var(--cream);color:var(--text-dark);padding:96px 24px 60px}
+        .container{max-width:900px;margin:0 auto}
+        nav{position:fixed;top:0;left:0;right:0;height:72px;background:rgba(250,247,242,.95);backdrop-filter:blur(16px);box-shadow:0 1px 0 var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 24px;z-index:100}
+        nav a,nav button{font-size:.875rem;color:var(--text-muted);text-decoration:none;font-weight:500;background:none;border:none;cursor:pointer;font-family:inherit}
+        nav a:hover,nav button:hover{color:var(--espresso)}
+        h1{font-family:var(--font-h);font-size:2rem;margin-bottom:6px}
+        h2{font-family:var(--font-h);font-size:1.25rem;margin:0 0 14px}
+        .muted{color:var(--text-muted)}
+        .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:22px;margin-bottom:22px}
+        .btn{background:var(--terracotta);color:#fff;border:none;padding:11px 22px;border-radius:999px;font-weight:600;cursor:pointer;font-family:inherit;font-size:.9rem;display:inline-flex;align-items:center;gap:6px}
+        .btn:disabled{opacity:.5;cursor:not-allowed}
+        .btn-ghost{background:transparent;color:var(--espresso);border:1px solid var(--border)}
+        .btn-dark{background:var(--espresso)}
+        .input{width:100%;padding:12px 16px;border:1px solid var(--border);border-radius:10px;font-family:inherit;font-size:.95rem;background:var(--cream);outline:none}
+        .input:focus{border-color:var(--terracotta)}
+        .join-banner{background:var(--espresso);color:#fff;border-radius:14px;padding:20px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:22px}
+        .join-code{font-family:monospace;font-size:2rem;letter-spacing:8px;color:#fff;background:rgba(255,255,255,.12);padding:8px 18px;border-radius:10px}
+        .badge{padding:4px 12px;border-radius:999px;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+        .badge-open{background:rgba(40,167,69,.12);color:#28a745}
+        .badge-locked{background:rgba(255,193,7,.15);color:#a67c00}
+        .badge-placed{background:rgba(196,112,75,.15);color:var(--terracotta)}
+        .menu-cat{border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden}
+        .menu-cat>summary{padding:12px 16px;cursor:pointer;font-weight:600;font-family:var(--font-h);list-style:none}
+        .menu-cat>summary::-webkit-details-marker{display:none}
+        .menu-row{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-top:1px solid var(--border)}
+        .menu-row small{color:var(--text-muted)}
+        .stepper{display:inline-flex;align-items:center;gap:10px}
+        .stepper button{width:28px;height:28px;border-radius:50%;border:1px solid var(--border);background:var(--cream);cursor:pointer;font-size:1rem;line-height:1}
+        .part{border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:10px}
+        .part.you{border-color:var(--terracotta);background:rgba(196,112,75,.05)}
+        .part-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+        .split-toggle{display:inline-flex;border:1px solid var(--border);border-radius:999px;overflow:hidden;margin-bottom:14px}
+        .split-toggle button{padding:8px 18px;border:none;background:var(--card);cursor:pointer;font-family:inherit;font-size:.82rem;font-weight:600;color:var(--text-muted)}
+        .split-toggle button.active{background:var(--terracotta);color:#fff}
+        .row-between{display:flex;justify-content:space-between;align-items:center}
+        .total-line{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--border)}
+        .grand{font-family:var(--font-h);font-size:1.4rem;font-weight:800}
+        .hidden{display:none!important}
+        .toast-container{position:fixed;bottom:32px;left:50%;transform:translateX(-50%);z-index:4000;display:flex;flex-direction:column;gap:8px;align-items:center}
+        .toast{background:var(--espresso);color:#fff;padding:12px 24px;border-radius:9999px;font-size:.8125rem;font-weight:500;box-shadow:0 12px 40px rgba(28,20,16,.2);opacity:0;transform:translateY(20px);transition:all .35s ease;display:flex;align-items:center;gap:8px}
+        .toast.toast--visible{opacity:1;transform:translateY(0)}
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="index.html" style="font-family:var(--font-h);font-weight:800;color:var(--espresso);font-size:1.1rem">STUDIO 01</a>
+        <div style="display:flex;gap:20px;align-items:center">
+            <a href="index.html">Menu</a>
+            <a href="customer-dashboard.html">Dashboard</a>
+            <button id="logoutBtn">Logout</button>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h1>Group Order</h1>
+        <p class="muted">Order together, split the bill. Share a code and everyone adds their own items.</p>
+
+        <!-- CREATE (no code in URL) -->
+        <div id="createView" class="card hidden" style="margin-top:22px">
+            <h2>Start a group order</h2>
+            <p class="muted" style="margin-bottom:14px">You'll get a code to share with your table or friends.</p>
+            <input id="titleInput" class="input" placeholder="Name it (e.g. Friday Team Lunch)" maxlength="120" style="margin-bottom:14px">
+            <button id="createBtn" class="btn"><iconify-icon icon="lucide:users" width="16"></iconify-icon> Create group order</button>
+        </div>
+
+        <!-- NOT FOUND -->
+        <div id="notFoundView" class="card hidden" style="margin-top:22px">
+            <h2>Group order not found</h2>
+            <p class="muted" style="margin-bottom:14px">That code doesn't match an active group order.</p>
+            <a class="btn" href="group-order.html"><iconify-icon icon="lucide:plus" width="16"></iconify-icon> Start a new one</a>
+        </div>
+
+        <!-- GROUP -->
+        <div id="groupView" class="hidden">
+            <div class="join-banner">
+                <div>
+                    <div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.55);margin-bottom:6px">Share this code</div>
+                    <div class="join-code" id="joinCode">------</div>
+                </div>
+                <div style="text-align:right">
+                    <div id="groupTitle" style="font-family:var(--font-h);font-weight:600;margin-bottom:10px"></div>
+                    <button class="btn btn-ghost" id="shareBtn" style="color:#fff;border-color:rgba(255,255,255,.3)"><iconify-icon icon="lucide:share-2" width="15"></iconify-icon> Copy link</button>
+                </div>
+            </div>
+
+            <div class="row-between" style="margin-bottom:18px">
+                <div>Status: <span id="statusBadge" class="badge badge-open">open</span></div>
+                <div class="muted" style="font-size:.82rem">Host: <span id="hostName"></span></div>
+            </div>
+
+            <!-- MY ITEMS -->
+            <div class="card" id="myItemsCard">
+                <h2>Your items</h2>
+                <div id="myItemsList"><p class="muted">Nothing yet — add items from the menu below.</p></div>
+                <div class="row-between" style="margin-top:14px">
+                    <span class="muted">Your subtotal: <strong id="mySubtotal">Rs.0</strong></span>
+                    <button class="btn" id="saveItemsBtn"><iconify-icon icon="lucide:check" width="16"></iconify-icon> Save my items</button>
+                </div>
+            </div>
+
+            <!-- MENU PICKER -->
+            <div class="card" id="menuCard">
+                <h2>Add from the menu</h2>
+                <div id="menuList"><p class="muted">Loading menu…</p></div>
+            </div>
+
+            <!-- PARTICIPANTS + SPLIT -->
+            <div class="card">
+                <h2>Everyone's order</h2>
+                <div id="participants"></div>
+
+                <h2 style="margin-top:22px">Split the bill</h2>
+                <div class="split-toggle">
+                    <button data-mode="itemized" class="active">Itemized</button>
+                    <button data-mode="equal">Split equally</button>
+                </div>
+                <div id="splitView"></div>
+
+                <div class="row-between" style="margin-top:16px;padding-top:14px;border-top:2px solid var(--border)">
+                    <span class="grand">Grand total</span>
+                    <span class="grand" id="grandTotal">Rs.0</span>
+                </div>
+            </div>
+
+            <!-- HOST CONTROLS -->
+            <div class="card" id="hostControls">
+                <h2>Host controls</h2>
+                <div id="hostButtons" style="display:flex;gap:10px;flex-wrap:wrap"></div>
+                <div id="placedNote" class="hidden" style="margin-top:12px"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script>
+        const params = new URLSearchParams(location.search);
+        let code = (params.get('code') || '').toUpperCase();
+
+        // Require login; preserve this exact page (with code) as the returnUrl.
+        if (!(window.API && API.isLoggedIn())) {
+            API.setReturnUrl('group-order.html' + location.search);
+            location.href = 'login.html';
+        }
+
+        document.getElementById('logoutBtn').addEventListener('click', () => API.logout());
+        function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+        function toast(m, i){ API.toast(m, i); }
+        function money(n){ return 'Rs.' + (Math.round((n + Number.EPSILON) * 100) / 100); }
+
+        let group = null;
+        let menu = {};
+        let myItems = {};        // name -> {name, price, quantity}
+        let seeded = false;      // seed local editor from server only once
+        let splitMode = 'itemized';
+        let pollTimer = null;
+
+        function show(id){ ['createView','notFoundView','groupView'].forEach(v => document.getElementById(v).classList.toggle('hidden', v !== id)); }
+
+        // ---------- Create flow ----------
+        document.getElementById('createBtn').addEventListener('click', async () => {
+            const title = document.getElementById('titleInput').value.trim();
+            const res = await API.handleApiCall(() => API.authFetch('/api/group-orders', { method: 'POST', json: { title } }));
+            if (!res || !res.ok) return;
+            const data = await res.json();
+            location.href = 'group-order.html?code=' + encodeURIComponent(data.join_code);
+        });
+
+        // ---------- Menu ----------
+        async function loadMenu() {
+            try {
+                const data = await fetch(apiUrl('/api/menu')).then(r => r.json());
+                menu = data.menu || {};
+                renderMenu();
+            } catch (e) { document.getElementById('menuList').innerHTML = '<p class="muted">Could not load the menu.</p>'; }
+        }
+        function renderMenu() {
+            const wrap = document.getElementById('menuList');
+            const cats = Object.keys(menu);
+            if (!cats.length) { wrap.innerHTML = '<p class="muted">No menu items.</p>'; return; }
+            wrap.innerHTML = cats.map(cat => {
+                const rows = Object.entries(menu[cat]).map(([name, info]) => {
+                    if (info.sold_out) return '';
+                    return `<div class="menu-row"><div>${esc(name)}<br><small>${money(info.price)}</small></div>
+                        <button class="btn btn-ghost" data-add="${esc(name)}" data-price="${info.price}"><iconify-icon icon="lucide:plus" width="15"></iconify-icon> Add</button></div>`;
+                }).join('');
+                return `<details class="menu-cat"><summary>${esc(cat)}</summary>${rows}</details>`;
+            }).join('');
+            wrap.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', () => {
+                addToMine(b.dataset.add, parseFloat(b.dataset.price));
+            }));
+        }
+
+        // ---------- My items (local editor) ----------
+        function addToMine(name, price) {
+            if (group && group.status !== 'open') { toast('This group order is locked.', 'lucide:lock'); return; }
+            if (myItems[name]) myItems[name].quantity += 1;
+            else myItems[name] = { name, price, quantity: 1 };
+            renderMyItems();
+        }
+        function changeQty(name, delta) {
+            if (!myItems[name]) return;
+            myItems[name].quantity += delta;
+            if (myItems[name].quantity <= 0) delete myItems[name];
+            renderMyItems();
+        }
+        function myTotal(){ return Object.values(myItems).reduce((a, i) => a + i.price * i.quantity, 0); }
+        function renderMyItems() {
+            const list = document.getElementById('myItemsList');
+            const items = Object.values(myItems);
+            if (!items.length) { list.innerHTML = '<p class="muted">Nothing yet — add items from the menu below.</p>'; }
+            else {
+                list.innerHTML = items.map(i => `<div class="menu-row" style="border-top:none;border-bottom:1px solid var(--border)">
+                    <div>${esc(i.name)}<br><small>${money(i.price)} each</small></div>
+                    <span class="stepper"><button data-dec="${esc(i.name)}">-</button><strong>${i.quantity}</strong><button data-inc="${esc(i.name)}">+</button></span></div>`).join('');
+                list.querySelectorAll('[data-inc]').forEach(b => b.addEventListener('click', () => changeQty(b.dataset.inc, 1)));
+                list.querySelectorAll('[data-dec]').forEach(b => b.addEventListener('click', () => changeQty(b.dataset.dec, -1)));
+            }
+            document.getElementById('mySubtotal').textContent = money(myTotal());
+        }
+        document.getElementById('saveItemsBtn').addEventListener('click', async () => {
+            const res = await API.handleApiCall(() => API.authFetch('/api/group-orders/' + code + '/items',
+                { method: 'PUT', json: { items: Object.values(myItems) } }));
+            if (!res || !res.ok) return;
+            group = (await res.json()).group;
+            renderGroup();
+            toast('Your items are saved.', 'lucide:check-circle');
+        });
+
+        // ---------- Group state ----------
+        async function refresh() {
+            const res = await API.handleApiCall(() => API.authFetch('/api/group-orders/' + code), { silent: true });
+            if (!res) return;
+            if (res.status === 404) { stopPolling(); show('notFoundView'); return; }
+            if (!res.ok) return;
+            group = (await res.json()).group;
+            // Auto-join an open group we're not part of yet.
+            const me = group.participants.find(p => p.is_you);
+            if (!me && group.status === 'open') { await joinGroup(); return; }
+            if (me && !seeded) { seedMine(me.items); seeded = true; }
+            show('groupView');
+            renderGroup();
+        }
+        async function joinGroup() {
+            const res = await API.handleApiCall(() => API.authFetch('/api/group-orders/' + code + '/join', { method: 'POST' }), { silent: true });
+            if (!res || !res.ok) { show('groupView'); if (group) renderGroup(); return; }
+            group = (await res.json()).group;
+            const me = group.participants.find(p => p.is_you);
+            if (me && !seeded) { seedMine(me.items); seeded = true; }
+            show('groupView');
+            renderGroup();
+        }
+        function seedMine(items) {
+            myItems = {};
+            (items || []).forEach(i => { myItems[i.name] = { name: i.name, price: i.price, quantity: i.quantity }; });
+            renderMyItems();
+        }
+
+        function renderGroup() {
+            if (!group) return;
+            document.getElementById('joinCode').textContent = group.join_code;
+            document.getElementById('groupTitle').textContent = group.title;
+            document.getElementById('hostName').textContent = group.host_name;
+            const badge = document.getElementById('statusBadge');
+            badge.textContent = group.status;
+            badge.className = 'badge badge-' + (group.status === 'placed' ? 'placed' : (group.status === 'open' ? 'open' : 'locked'));
+
+            const locked = group.status !== 'open';
+            document.getElementById('saveItemsBtn').disabled = locked;
+            document.getElementById('myItemsCard').style.opacity = locked ? '.6' : '1';
+            document.getElementById('menuCard').classList.toggle('hidden', locked);
+
+            // Participants
+            document.getElementById('participants').innerHTML = group.participants.map(p => {
+                const items = (p.items || []).map(i => `${esc(i.name)} ×${i.quantity}`).join(', ') || '<span class="muted">no items yet</span>';
+                return `<div class="part ${p.is_you ? 'you' : ''}"><div class="part-head">
+                    <strong>${esc(p.name)}${p.is_you ? ' (you)' : ''}${p.user_id === group.host_id ? ' · host' : ''}</strong>
+                    <span>${money(p.subtotal)}</span></div><div class="muted" style="font-size:.85rem">${items}</div></div>`;
+            }).join('');
+
+            document.getElementById('grandTotal').textContent = money(group.grand_total);
+            renderSplit();
+            renderHostControls();
+        }
+
+        function renderSplit() {
+            const el = document.getElementById('splitView');
+            if (splitMode === 'equal') {
+                const eq = group.split.equal;
+                el.innerHTML = `<div class="total-line"><span>${eq.people} ${eq.people === 1 ? 'person' : 'people'} split evenly</span><strong>${money(eq.per_person)} each</strong></div>
+                    <p class="muted" style="font-size:.8rem;margin-top:8px">${money(eq.per_person)} × ${eq.people} = ${money(group.grand_total)}</p>`;
+            } else {
+                el.innerHTML = group.split.itemized.map(s => `<div class="total-line"><span>${esc(s.name)}</span><strong>${money(s.amount)}</strong></div>`).join('')
+                    || '<p class="muted">No items yet.</p>';
+            }
+        }
+        document.querySelectorAll('.split-toggle button').forEach(b => b.addEventListener('click', () => {
+            splitMode = b.dataset.mode;
+            document.querySelectorAll('.split-toggle button').forEach(x => x.classList.toggle('active', x === b));
+            renderSplit();
+        }));
+
+        function renderHostControls() {
+            const wrap = document.getElementById('hostControls');
+            const btns = document.getElementById('hostButtons');
+            const placed = document.getElementById('placedNote');
+            if (!group.is_host) { wrap.classList.add('hidden'); return; }
+            wrap.classList.remove('hidden');
+            if (group.status === 'placed') {
+                btns.innerHTML = '';
+                placed.classList.remove('hidden');
+                placed.innerHTML = `<p style="color:#28a745;font-weight:600"><iconify-icon icon="lucide:check-circle" width="16"></iconify-icon> Placed as Order #${group.order_id}.</p>
+                    <a class="btn btn-ghost" href="customer-dashboard.html" style="margin-top:10px"><iconify-icon icon="lucide:activity" width="15"></iconify-icon> Track it on your dashboard</a>`;
+                return;
+            }
+            placed.classList.add('hidden');
+            const lockBtn = group.status === 'open'
+                ? '<button class="btn btn-ghost" id="lockBtn"><iconify-icon icon="lucide:lock" width="15"></iconify-icon> Lock (stop edits)</button>'
+                : '<button class="btn btn-ghost" id="unlockBtn"><iconify-icon icon="lucide:unlock" width="15"></iconify-icon> Re-open</button>';
+            btns.innerHTML = lockBtn + '<button class="btn btn-dark" id="placeBtn"><iconify-icon icon="lucide:send" width="15"></iconify-icon> Place group order</button>';
+            const lb = document.getElementById('lockBtn'); if (lb) lb.addEventListener('click', () => setLock(true));
+            const ub = document.getElementById('unlockBtn'); if (ub) ub.addEventListener('click', () => setLock(false));
+            document.getElementById('placeBtn').addEventListener('click', placeOrder);
+        }
+
+        async function setLock(locked) {
+            const res = await API.handleApiCall(() => API.authFetch('/api/group-orders/' + code + '/lock', { method: 'POST', json: { locked } }));
+            if (!res || !res.ok) return;
+            group = (await res.json()).group;
+            renderGroup();
+        }
+        async function placeOrder() {
+            if (!confirm('Place the group order now? This locks in everyone\'s items.')) return;
+            const res = await API.handleApiCall(() => API.authFetch('/api/group-orders/' + code + '/place', { method: 'POST' }));
+            if (!res || !res.ok) return;
+            group = (await res.json()).group;
+            stopPolling();
+            renderGroup();
+            toast('Group order placed!', 'lucide:party-popper');
+        }
+
+        // ---------- Polling (reflect others' changes) ----------
+        function startPolling() {
+            stopPolling();
+            pollTimer = setInterval(() => { if (group && group.status !== 'placed') refresh(); }, 5000);
+        }
+        function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
+        document.addEventListener('visibilitychange', () => { if (document.hidden) stopPolling(); else if (group && group.status !== 'placed') startPolling(); });
+
+        document.getElementById('shareBtn').addEventListener('click', async () => {
+            const link = location.origin + location.pathname + '?code=' + code;
+            try { await navigator.clipboard.writeText(link); toast('Invite link copied!', 'lucide:copy'); }
+            catch (e) { prompt('Copy this invite link:', link); }
+        });
+
+        // ---------- Boot ----------
+        (async function () {
+            if (!(window.API && API.isLoggedIn())) return;
+            if (!code) { show('createView'); return; }
+            await loadMenu();
+            await refresh();
+            if (group && group.status !== 'placed') startPolling();
+        })();
+    </script>
+</body>
+</html>

@@ -41,6 +41,14 @@
         .stars-input .star.filled{color:#f4c430}
         textarea{width:100%;margin:10px 0;padding:10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;resize:none}
         .btn{background:var(--terracotta);color:#fff;border:none;padding:10px 20px;border-radius:999px;font-weight:600;cursor:pointer;font-family:inherit}
+        .badge{padding:4px 12px;border-radius:999px;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
+        .badge-pending{background:rgba(255,193,7,.15);color:#a67c00}
+        .badge-preparing{background:rgba(0,123,255,.12);color:#007bff}
+        .badge-ready{background:rgba(196,112,75,.15);color:var(--terracotta)}
+        .badge-completed{background:rgba(40,167,69,.15);color:#28a745}
+        .live-indicator{display:inline-flex;align-items:center;gap:6px;font-size:.72rem;color:var(--text-muted);margin-left:10px}
+        .live-dot{width:8px;height:8px;border-radius:50%;background:#28a745;animation:pulse 1.6s infinite}
+        @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(40,167,69,.5)}70%{box-shadow:0 0 0 7px rgba(40,167,69,0)}100%{box-shadow:0 0 0 0 rgba(40,167,69,0)}}
         @keyframes badgePop{0%{transform:scale(.8);opacity:0}60%{transform:scale(1.05)}100%{transform:scale(1);opacity:1}}
     </style>
 </head>
@@ -49,6 +57,7 @@
         <a href="index.html" style="font-family:var(--font-h);font-weight:800;color:var(--espresso);font-size:1.1rem">STUDIO 01</a>
         <div style="display:flex;gap:20px;align-items:center">
             <a href="index.html">Menu</a>
+            <a href="group-order.html">Group Order</a>
             <a href="change-password.html">Change Password</a>
             <button id="logoutBtn">Logout</button>
         </div>
@@ -71,7 +80,7 @@
         <h2 style="font-family:var(--font-h);margin:10px 0 20px">Your Badges <span id="streakLabel" style="font-size:.9rem;color:var(--terracotta);font-weight:600"></span></h2>
         <div id="badgesGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:36px"></div>
 
-        <h2 style="font-family:var(--font-h);margin-bottom:20px">Order History</h2>
+        <h2 id="orderHistoryHeading" style="font-family:var(--font-h);margin-bottom:20px">Order History</h2>
         <div id="orders"></div>
     </div>
 
@@ -81,6 +90,16 @@
         if (!API.requireAuth()) { /* redirected to login */ }
 
         function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+        const STATUSES = ['Pending', 'Preparing', 'Ready', 'Completed'];
+        function trackerHtml(status) {
+            const currIdx = STATUSES.indexOf(status);
+            return STATUSES.map((s, i) => `
+                    <div class="step ${i < currIdx ? 'done' : ''} ${i === currIdx ? 'active' : ''}">
+                        <div class="circle">${i < currIdx ? '&#10003;' : i + 1}</div><span>${s}</span>
+                    </div>`).join('');
+        }
+        function statusBadgeClass(status){ return 'ostatus badge badge-' + String(status || '').toLowerCase(); }
 
         async function init() {
             let profile;
@@ -106,22 +125,16 @@
             document.getElementById('sSpent').textContent = '₹' + orders.reduce((a, b) => a + b.currency_paid, 0);
 
             const cont = document.getElementById('orders');
-            const statuses = ['Pending', 'Preparing', 'Ready', 'Completed'];
             if (!orders.length) { cont.innerHTML = '<p style="text-align:center;color:var(--text-muted)">No orders yet.</p>'; return; }
 
             cont.innerHTML = orders.map(o => {
-                const currIdx = statuses.indexOf(o.status);
-                const trackerHtml = statuses.map((s, i) => `
-                    <div class="step ${i < currIdx ? 'done' : ''} ${i === currIdx ? 'active' : ''}">
-                        <div class="circle">${i < currIdx ? '&#10003;' : i + 1}</div><span>${s}</span>
-                    </div>`).join('');
                 const itemsHtml = o.items.map(i => `${esc(i.name)} (x${i.quantity})`).join(', ');
                 const firstItem = o.items[0] ? o.items[0].name : '';
                 const showReview = o.status === 'Completed';
-                return `<div class="order">
-                    <div class="order-head"><h3>Order #${o.order_id}</h3><span style="font-size:.8rem;color:var(--text-muted)">${esc(o.date_time)}</span></div>
+                return `<div class="order" data-oid="${o.order_id}">
+                    <div class="order-head"><h3>Order #${o.order_id}</h3><div style="display:flex;align-items:center;gap:10px"><span class="${statusBadgeClass(o.status)}">${esc(o.status)}</span><span style="font-size:.8rem;color:var(--text-muted)">${esc(o.date_time)}</span></div></div>
                     <div class="order-body">
-                        <div class="tracker">${trackerHtml}</div>
+                        <div class="tracker">${trackerHtml(o.status)}</div>
                         <p style="font-size:.875rem;color:var(--text-muted)"><strong>Items:</strong> ${itemsHtml}<br><strong>Total Paid:</strong> ₹${o.currency_paid} ${o.coins_used > 0 ? '(+ ' + o.coins_used + ' coins)' : ''}</p>
                         <div class="review-form" id="rev-${o.order_id}">
                             <p style="font-weight:600;margin-bottom:10px">Rate this order:</p>
@@ -131,7 +144,7 @@
                             <textarea placeholder="Leave a comment (optional)" rows="2"></textarea>
                             <button class="btn submit-review">Submit Review</button>
                         </div>
-                        ${showReview ? `<button class="btn" style="margin-top:15px;font-size:.8rem" onclick="document.getElementById('rev-${o.order_id}').style.display='block'; this.style.display='none'">Write a Review</button>` : ''}
+                        <button class="btn review-toggle" style="margin-top:15px;font-size:.8rem;display:${showReview ? 'inline-flex' : 'none'}" onclick="document.getElementById('rev-${o.order_id}').style.display='block'; this.style.display='none'">Write a Review</button>
                     </div>
                 </div>`;
             }).join('');
@@ -162,8 +175,65 @@
                     } catch (e) { alert('Could not submit review.'); }
                 });
             });
+
+            connectOrderStream();  // push status updates live (SSE) — no refresh needed
         }
 
+        // ---- Live order tracking via short polling (free-tier friendly, no held connections) ----
+        let _pollTimer = null;
+        let _lastStatuses = {};
+        function connectOrderStream() {
+            if (!(window.API && API.getAccess())) return;
+            // Snapshot the initial state so we only animate real changes.
+            document.querySelectorAll('.order[data-oid]').forEach(card => {
+                const pill = card.querySelector('.ostatus');
+                if (pill) _lastStatuses[card.dataset.oid] = pill.textContent;
+            });
+            // Show live indicator.
+            const heading = document.getElementById('orderHistoryHeading');
+            if (heading && !document.getElementById('liveHint')) {
+                heading.insertAdjacentHTML('beforeend', ' <span id="liveHint" class="live-indicator"><span class="live-dot"></span> Live</span>');
+            }
+            startPolling();
+        }
+        function startPolling() {
+            stopPolling();
+            _pollTimer = setInterval(pollOrders, 5000);
+        }
+        function stopPolling() { if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; } }
+        async function pollOrders() {
+            try {
+                const res = await API.authFetch('/api/user/orders');
+                if (!res || !res.ok) return;
+                const orders = await res.json();
+                (orders || []).forEach(o => {
+                    const prev = _lastStatuses[String(o.order_id)];
+                    if (prev !== o.status) {
+                        _lastStatuses[String(o.order_id)] = o.status;
+                        applyStatus(o.order_id, o.status);
+                    }
+                });
+            } catch (e) { /* silent — retry next tick */ }
+        }
+        // Pause polling when tab is hidden to save battery/bandwidth.
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) stopPolling(); else startPolling();
+        });
+        function applyStatus(oid, status) {
+            const card = document.querySelector('.order[data-oid="' + oid + '"]');
+            if (!card) return;
+            const pill = card.querySelector('.ostatus');
+            if (pill) { pill.textContent = status; pill.className = statusBadgeClass(status); }
+            const tracker = card.querySelector('.tracker');
+            if (tracker) tracker.innerHTML = trackerHtml(status);
+            if (status === 'Completed') {
+                const toggle = card.querySelector('.review-toggle');
+                const form = card.querySelector('.review-form');
+                if (toggle && (!form || form.style.display !== 'block')) toggle.style.display = 'inline-flex';
+            }
+        }
+
+        window.addEventListener('beforeunload', () => { stopPolling(); });
         document.getElementById('logoutBtn').addEventListener('click', () => API.logout());
         init();
     </script>

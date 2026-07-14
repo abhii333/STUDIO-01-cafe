@@ -38,6 +38,11 @@
         .toggle-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-height:280px;overflow:auto}
         .toggle-item{padding:10px;background:var(--cream);border-radius:8px;font-size:.8rem;display:flex;justify-content:space-between;align-items:center;cursor:pointer;border:1px solid var(--border);gap:8px}
         .toggle-item.sold{background:rgba(220,53,69,.05);border-color:rgba(220,53,69,.2);color:#dc3545}
+        .an-stat{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px}
+        .an-stat-label{font-size:.7rem;text-transform:uppercase;color:var(--text-muted);letter-spacing:.04em;margin-bottom:6px}
+        .an-stat-val{font-family:var(--font-h);font-size:1.5rem;font-weight:800}
+        .an-bar-track{height:8px;background:var(--cream);border-radius:6px;overflow:hidden;margin-top:4px}
+        .an-bar-fill{height:100%;background:var(--terracotta)}
         @media(max-width:900px){.grid{grid-template-columns:1fr}}
     </style>
 </head>
@@ -69,6 +74,7 @@
         </div>
 
         <div class="tabs">
+            <button class="tab" onclick="switchTab('analytics', this)">Analytics</button>
             <button class="tab active" onclick="switchTab('orders', this)">Orders</button>
             <button class="tab" onclick="switchTab('menu', this)">Menu</button>
             <button class="tab" onclick="switchTab('offers', this)">Offers</button>
@@ -79,6 +85,17 @@
             <button class="tab" onclick="switchTab('audits', this)">Audits</button>
         </div>
 
+        <div id="analytics-sec" class="section">
+            <div id="anSummary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:24px"></div>
+            <div class="grid">
+                <div class="card"><h3>Revenue Trend (last 30 days)</h3><canvas id="anRevChart" height="120"></canvas></div>
+                <div class="card"><h3>Customer Segments</h3><div id="anSegments"></div></div>
+            </div>
+            <div class="grid">
+                <div class="card"><h3>Peak Hours</h3><canvas id="anHoursChart" height="120"></canvas></div>
+                <div class="card"><h3>Top Items</h3><div id="anTopItems"></div></div>
+            </div>
+        </div>
         <div id="orders-sec" class="section active"></div>
         <div id="menu-sec" class="section">
             <div class="card" style="margin-bottom:20px">
@@ -280,6 +297,7 @@
             document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
             el.classList.add('active');
             document.getElementById(id + '-sec').classList.add('active');
+            if (id === 'analytics') loadAnalytics();
             if (id === 'menu') loadMenu();
             if (id === 'offers') loadOffers();
             if (id === 'tables') loadTables();
@@ -529,6 +547,55 @@
             if (res.ok) { document.getElementById('phUrl').value = ''; document.getElementById('phCaption').value = ''; msg.textContent = 'Added!'; loadPhotos(); } else { msg.textContent = 'Failed.'; }
         }
         async function deletePhoto(id) { await API.authFetch('/api/admin/photos/' + id, { method: 'DELETE' }); loadPhotos(); }
+
+        // ---- Analytics (Task 7) ----
+        let _analyticsCharts = {};
+        function drawAnChart(canvasId, type, labels, data, label) {
+            if (!window.Chart) return;
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            if (_analyticsCharts[canvasId]) _analyticsCharts[canvasId].destroy();
+            _analyticsCharts[canvasId] = new Chart(ctx, {
+                type,
+                data: { labels, datasets: [{ label, data, backgroundColor: 'rgba(196,112,75,.5)', borderColor: '#C4704B', borderWidth: 2, tension: .3, fill: type === 'line' }] },
+                options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+            });
+        }
+        async function loadAnalytics() {
+            let d;
+            try { d = await API.authFetch('/api/admin/analytics/dashboard').then(r => r.json()); }
+            catch (e) { return; }
+            const s = d.summary || {};
+            document.getElementById('anSummary').innerHTML = [
+                ['Revenue', '₹' + (s.total_revenue || 0)],
+                ['Orders', s.total_orders || 0],
+                ['Avg Order', '₹' + (s.avg_order_value || 0)],
+                ['Customers', s.unique_customers || 0],
+                ['Items Sold', s.items_sold || 0],
+                ['Guest Orders', s.guest_orders || 0]
+            ].map(([k, v]) => `<div class="an-stat"><div class="an-stat-label">${k}</div><div class="an-stat-val">${v}</div></div>`).join('');
+
+            const rt = d.revenue_trend || [];
+            drawAnChart('anRevChart', 'line', rt.map(x => x.date), rt.map(x => x.revenue), 'Revenue (₹)');
+
+            const ph = d.peak_hours || [];
+            drawAnChart('anHoursChart', 'bar', ph.map(x => x.hour + ':00'), ph.map(x => x.orders), 'Orders');
+
+            const ti = d.top_items || [];
+            const maxq = Math.max(1, ...ti.map(x => x.quantity));
+            document.getElementById('anTopItems').innerHTML = ti.length ? ti.map(x => `
+                <div style="margin-bottom:10px">
+                    <div style="display:flex;justify-content:space-between;font-size:.85rem"><span>${esc(x.name)}</span><span style="color:var(--text-muted)">${x.quantity} sold · ₹${x.revenue}</span></div>
+                    <div class="an-bar-track"><div class="an-bar-fill" style="width:${(x.quantity / maxq * 100).toFixed(0)}%"></div></div>
+                </div>`).join('') : '<p style="color:var(--text-muted)">No sales yet.</p>';
+
+            const cs = d.customer_segments || {};
+            document.getElementById('anSegments').innerHTML = [
+                ['New (1 order)', cs.new || 0],
+                ['Returning (2–4)', cs.returning || 0],
+                ['VIP (5+)', cs.vip || 0],
+                ['Guest orders', cs.guest_orders || 0]
+            ].map(([k, v]) => `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span>${k}</span><strong>${v}</strong></div>`).join('');
+        }
 
         document.getElementById('logoutBtn').addEventListener('click', () => API.logout());
         loadData();

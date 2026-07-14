@@ -409,10 +409,11 @@
         updateCartUI();
     }
 
-    // Cart Save Rule - ONLY saves if logged in (Guests don't keep carts)
-    function saveCart() { 
-        if(isLoggedIn) localStorage.cart = JSON.stringify(cart); 
-        updateCartUI(); 
+    // Cart persistence: logged-in carts go to localStorage, guest carts to
+    // sessionStorage (API.saveCart picks the right store based on login state).
+    function saveCart() {
+        API.saveCart(cart);
+        updateCartUI();
     }
 
     // Toast Notification
@@ -446,9 +447,13 @@
         console.error("API Error, loading fallback menu", e);
         // Fallback inline menu just in case backend is completely off
         menuData = {
+            "Starters": {
+                "Tandoori Paneer Tikka": {"price": 350, "description": "Marinated cottage cheese cubes roasted in a tandoor."},
+                "Hara Bhara Kebab": {"price": 280, "description": "Spiced patties made from spinach, peas, and potatoes."}
+            },
             "Beverages": {
-                "Cold Brew Coffee": {"price": 250, "description": "Slow-steeped 12-hour extraction."},
-                "Turmeric Oat Latte": {"price": 280, "description": "Golden milk with ginger, cinnamon, and creamy oat milk."}
+                "Classic Cold Coffee": {"price": 220, "description": "Blended sweet iced coffee."},
+                "Fresh Lime Soda": {"price": 150, "description": "Available sweet, salted, or mixed."}
             }
         };
         customData = {};
@@ -464,7 +469,8 @@
             isLoggedIn = true;
             const u = await uRes.json();
             userCoins = u.coins;
-            try { if(localStorage.cart) cart = JSON.parse(localStorage.cart); } catch(e) { cart = {}; }
+            // Merge any guest (sessionStorage) cart into the account cart, then load it.
+            cart = API.adoptGuestCart();
             document.getElementById('navActions').innerHTML = `
                 <button class="nav-btn" id="openCart"><iconify-icon icon="lucide:shopping-bag" width="16"></iconify-icon> Cart (<span id="cartCount">0</span>)</button>
                 <span class="nav-btn nav-coin"><iconify-icon icon="lucide:coins" width="14"></iconify-icon> ${u.coins}</span>
@@ -474,7 +480,12 @@
             updateCartUI();
         } else {
             if (at && uRes.status === 401) API.clearSession(); // drop expired token so the nav is clean
-            cart = {};
+            // Guests keep a cart too — loaded from sessionStorage. Give them a
+            // cart button so they can review it before logging in to check out.
+            cart = API.getCart();
+            document.getElementById('navActions').innerHTML = `
+                <button class="nav-btn" id="openCart"><iconify-icon icon="lucide:shopping-bag" width="16"></iconify-icon> Cart (<span id="cartCount">0</span>)</button>
+                <a href="login.html" class="nav-btn" id="loginBtn">Login</a>`;
             updateCartUI();
         }
     } catch(e) {
@@ -602,11 +613,8 @@
     // Customize Modal
     let currentCustItem = {};
     function openCustomize(name, cat, basePrice) {
-        if(!(window.API && API.isLoggedIn())) {
-            showToast('Please log in to add items to cart', 'lucide:alert-circle');
-            setTimeout(()=>{ window.location = 'login.html'; }, 800);
-            return;
-        }
+        // Guests can build a cart (saved to sessionStorage); login is required
+        // only at checkout.
         currentCustItem = {name, cat, basePrice};
         const opts = customData[cat];
         if(!opts || opts.length === 0) { addToCart(name, basePrice, []); return; }
@@ -812,8 +820,10 @@
         }
 
         if(!(window.API && API.isLoggedIn())) {
-            showToast('Please log in to place an order', 'lucide:alert-circle');
-            setTimeout(()=>{ window.location = 'login.html'; }, 800);
+            // Remember the cart (already in sessionStorage) and come back here after login.
+            API.setReturnUrl('index.html');
+            showToast('Please log in to place your order — your cart is saved', 'lucide:alert-circle');
+            setTimeout(()=>{ window.location = 'login.html'; }, 900);
             return;
         }
 
@@ -892,7 +902,7 @@
                     submitFinalOrder(items, total, coinsToUse, response.razorpay_payment_id, 'Razorpay', response.razorpay_order_id, response.razorpay_signature);
                 },
                 prefill: {
-                    name: sessionStorage.getItem('username') || 'Customer',
+                    name: (window.API && API.getUsername()) || 'Customer',
                     email: ''
                 },
                 theme: {
@@ -914,17 +924,17 @@
     }
 
     async function submitFinalOrder(items, total, coins_to_use, payment_id, payment_label, razorpay_order_id, razorpay_signature) {
+        // handleApiCall surfaces network/server errors as a toast instead of
+        // failing silently; authFetch adds the bearer token + refresh retry.
+        const res = await API.handleApiCall(function () {
+            return API.authFetch('/api/order', { method: 'POST', json: {
+                items, total, coins_to_use, payment_id,
+                payment_method: getSelectedPaymentMethod(), razorpay_order_id, razorpay_signature
+            } });
+        }, { errorMessage: 'Failed to save order' });
+        if(!res || !res.ok) return;
         try {
-            const res = await fetch(apiUrl('/api/order'), {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API.getAccess()},
-                body: JSON.stringify({ items, total, coins_to_use, payment_id, payment_method: getSelectedPaymentMethod(), razorpay_order_id, razorpay_signature })
-            });
             const data = await res.json();
-            if(data.success === false) {
-                showToast(data.message, 'lucide:alert-circle');
-                return;
-            }
 
             window._lastOrderId = data.order_id;
             document.getElementById('modalOrderId').textContent = `Order #${data.order_id}`;
@@ -962,6 +972,7 @@
         const btn = document.querySelector('#bookingForm button[type="submit"]');
         if(btn) btn.onclick = async function(){
             if(!(window.API && API.isLoggedIn())) {
+                API.setReturnUrl('index.html#book');
                 showToast('Please log in to make a reservation', 'lucide:alert-circle');
                 setTimeout(()=>{ window.location = 'login.html'; }, 800);
                 return;
@@ -1033,7 +1044,8 @@
 
   function itemCard(x) {
     const img = x.image_url || FB;
-    return '<div class="menu-card"><img class="menu-card-img" src="'+esc(img)+'" alt="'+esc(x.name)+'" onerror="this.onerror=null;this.src=\'/static/placeholder.svg\'"><div class="menu-card-body"><div class="menu-card-name">'+esc(x.name)+'</div><div class="menu-card-desc">'+esc(x.description||'')+'</div><div class="menu-card-footer"><span class="menu-card-price">Rs.'+x.price+'</span><button class="menu-card-add" data-name="'+esc(x.name)+'" data-price="'+x.price+'" data-cat="'+esc(x.category||'')+'" onclick="openCustomize(\''+esc(x.name).replace(/'/g,"\\'")+'\',\''+esc(x.category||'').replace(/'/g,"\\'")+'\','+x.price+')">+</button></div></div></div>';
+    const reason = x.reason ? '<div class="menu-card-reason" style="font-size:.65rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--terracotta);margin-bottom:6px;display:flex;align-items:center;gap:4px"><iconify-icon icon="lucide:sparkles" width="11"></iconify-icon>'+esc(x.reason)+'</div>' : '';
+    return '<div class="menu-card"><img class="menu-card-img" src="'+esc(img)+'" alt="'+esc(x.name)+'" onerror="this.onerror=null;this.src=\'/static/placeholder.svg\'"><div class="menu-card-body">'+reason+'<div class="menu-card-name">'+esc(x.name)+'</div><div class="menu-card-desc">'+esc(x.description||'')+'</div><div class="menu-card-footer"><span class="menu-card-price">Rs.'+x.price+'</span><button class="menu-card-add" data-name="'+esc(x.name)+'" data-price="'+x.price+'" data-cat="'+esc(x.category||'')+'" onclick="openCustomize(\''+esc(x.name).replace(/'/g,"\\'")+'\',\''+esc(x.category||'').replace(/'/g,"\\'")+'\','+x.price+')">+</button></div></div></div>';
   }
 
   (async function () {

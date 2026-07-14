@@ -80,7 +80,7 @@
             if (!(window.API && API.isLoggedIn())) return;
             try {
                 const r = await fetch(API.url('/api/user/profile'), { headers: { 'Authorization': 'Bearer ' + API.getAccess() } });
-                if (r.ok) { window.location.href = API.isAdmin() ? 'admin-dashboard.html' : 'index.html'; return; }
+                if (r.ok) { API.goPostLogin(API.getUser()); return; }
                 if (r.status === 401) API.clearSession();
             } catch (e) {}
         })();
@@ -103,17 +103,15 @@
             if (!username || !email || !password) { showToast('Please fill all required fields', 'lucide:alert-circle'); return; }
             if (password !== confirm) { showToast('Passwords do not match', 'lucide:alert-circle'); return; }
             btn.disabled = true;
-            try {
-                const res = await API.apiFetch('/api/auth/register', { method: 'POST', json: { username, email, password, referral_code } });
-                const data = await res.json();
-                if (!res.ok) { showToast(data.message || 'Registration failed', 'lucide:alert-circle'); btn.disabled = false; return; }
-                API.setSession(data);
-                showToast('Account created! Welcome.', 'lucide:check-circle');
-                setTimeout(() => { window.location.href = 'index.html'; }, 600);
-            } catch (err) {
-                showToast('Could not reach the server. Try again.', 'lucide:x-circle');
-                btn.disabled = false;
-            }
+            const res = await API.handleApiCall(function () {
+                return API.apiFetch('/api/auth/register', { method: 'POST', json: { username, email, password, referral_code } });
+            });
+            if (!res || !res.ok) { btn.disabled = false; return; }
+            const data = await res.json();
+            API.setSession(data);
+            API.adoptGuestCart();
+            showToast('Account created! Welcome.', 'lucide:check-circle');
+            setTimeout(() => { API.goPostLogin(data.user); }, 600);
         });
     </script>
 </body>
