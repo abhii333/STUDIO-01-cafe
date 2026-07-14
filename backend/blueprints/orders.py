@@ -18,6 +18,72 @@ from services import razorpay_client, razorpay_init_error, maybe_capture_excepti
 
 orders_bp = Blueprint('orders', __name__)
 
+# Add-on customizations and their prices (server source of truth — also used
+# to recompute order totals so a customer can't just edit the JS total).
+CUSTOMIZATIONS = {
+    "Starters": [
+        {"name": "Extra Mint Chutney", "price": 30},
+        {"name": "Garlic Mayo Dip", "price": 40},
+        {"name": "Liquid Cheese Sauce", "price": 50},
+    ],
+    "Soups & Salads": [
+        {"name": "Herb Garlic Bread Toast", "price": 60},
+        {"name": "Extra Feta Cheese", "price": 50},
+        {"name": "Multigrain Croutons", "price": 40},
+    ],
+    "Gourmet Sandwiches": [
+        {"name": "Salted French Fries", "price": 80},
+        {"name": "Peri-Peri Potato Wedges", "price": 90},
+        {"name": "Extra Cheese Slice", "price": 40},
+    ],
+    "Main Course": [
+        {"name": "Butter Garlic Naan", "price": 60},
+        {"name": "Cucumber Mint Raita", "price": 40},
+        {"name": "Roasted Masala Papad", "price": 30},
+    ],
+    "Desserts": [
+        {"name": "Scoop of Vanilla Bean Ice Cream", "price": 80},
+        {"name": "Extra Hot Fudge Sauce", "price": 40},
+        {"name": "Crushed Mixed Nuts", "price": 30},
+    ],
+    "Beverages": [
+        {"name": "Extra Espresso Shot", "price": 50},
+        {"name": "Boba Pearls", "price": 60},
+        {"name": "Vanilla/Hazelnut Syrup Pump", "price": 40},
+    ],
+}
+
+
+def _customization_price(name):
+    for opts in CUSTOMIZATIONS.values():
+        for o in opts:
+            if o['name'] == name:
+                return o['price']
+    return None
+
+
+def _recompute_item_unit_price(cart_name):
+    """Recompute a cart line's per-unit price from server-known menu +
+    customization prices. cart_name is 'Base Name' or 'Base Name [Add-on, ...]'.
+    Returns (base_name, unit_price) — unit_price is None if the base item or
+    any customization isn't recognized (caller should reject the order).
+    """
+    if ' [' in cart_name and cart_name.endswith(']'):
+        base_name, rest = cart_name.split(' [', 1)
+        cust_list = [c.strip() for c in rest[:-1].split(',') if c.strip()]
+    else:
+        base_name, cust_list = cart_name, []
+    mi = MenuItem.query.filter_by(name=base_name).first()
+    if not mi:
+        return base_name, None
+    unit_price = mi.price
+    for c in cust_list:
+        cp = _customization_price(c)
+        if cp is None:
+            return base_name, None
+        unit_price += cp
+    return base_name, unit_price
+
 
 # ============================================================
 # PUBLIC MENU ROUTES
@@ -42,39 +108,7 @@ def api_menu():
                 "image_url": item.image_url, "sold_out": item.is_sold_out,
             } for item in cat.items
         }
-    customizations = {
-        "Starters": [
-            {"name": "Extra Mint Chutney", "price": 30},
-            {"name": "Garlic Mayo Dip", "price": 40},
-            {"name": "Liquid Cheese Sauce", "price": 50},
-        ],
-        "Soups & Salads": [
-            {"name": "Herb Garlic Bread Toast", "price": 60},
-            {"name": "Extra Feta Cheese", "price": 50},
-            {"name": "Multigrain Croutons", "price": 40},
-        ],
-        "Gourmet Sandwiches": [
-            {"name": "Salted French Fries", "price": 80},
-            {"name": "Peri-Peri Potato Wedges", "price": 90},
-            {"name": "Extra Cheese Slice", "price": 40},
-        ],
-        "Main Course": [
-            {"name": "Butter Garlic Naan", "price": 60},
-            {"name": "Cucumber Mint Raita", "price": 40},
-            {"name": "Roasted Masala Papad", "price": 30},
-        ],
-        "Desserts": [
-            {"name": "Scoop of Vanilla Bean Ice Cream", "price": 80},
-            {"name": "Extra Hot Fudge Sauce", "price": 40},
-            {"name": "Crushed Mixed Nuts", "price": 30},
-        ],
-        "Beverages": [
-            {"name": "Extra Espresso Shot", "price": 50},
-            {"name": "Boba Pearls", "price": 60},
-            {"name": "Vanilla/Hazelnut Syrup Pump", "price": 40},
-        ],
-    }
-    return jsonify({"menu": menu_dict, "customizations": customizations})
+    return jsonify({"menu": menu_dict, "customizations": CUSTOMIZATIONS})
 
 
 @orders_bp.route('/api/redeemable-items')
@@ -219,10 +253,39 @@ def api_order():
             return jsonify({'success': False, 'message': 'Payment could not be verified.'}), 400
 
     try:
+        # SECURITY: never trust the client's item prices or total. Recompute
+        # every line from the menu + customization prices known to the server,
+        # and reject the order if it references anything unrecognized.
+        if not items:
+            return jsonify({'success': False, 'message': 'No items in order.'}), 400
+        verified_items = []
+        server_total = 0.0
+        for i in items:
+            try:
+                qty = int(i.get('quantity', 1) or 1)
+            except (TypeError, ValueError):
+                return jsonify({'success': False, 'message': 'Invalid item quantity.'}), 400
+            if qty <= 0 or qty > 99:
+                return jsonify({'success': False, 'message': 'Invalid item quantity.'}), 400
+            cart_name = str(i.get('name', ''))
+            base_name, unit_price = _recompute_item_unit_price(cart_name)
+            if unit_price is None:
+                return jsonify({'success': False, 'message': f'Unknown item or add-on: {cart_name}'}), 400
+            item_soldout = MenuItem.query.filter_by(name=base_name, is_sold_out=True).first()
+            if item_soldout:
+                return jsonify({'success': False, 'message': f'{base_name} is sold out.'}), 400
+            verified_items.append({'name': cart_name, 'price': round(unit_price, 2), 'quantity': qty})
+            server_total += unit_price * qty
+        server_total = round(server_total, 2)
+        items = verified_items  # only ever persist/charge the server-computed lines
+        total = server_total    # the client-submitted total is ignored from here on
+
         if coins_to_use > 0:
             user = User.query.get(user_id)
             if coins_to_use > user.coins:
                 return jsonify({'success': False, 'message': 'Not enough coins'}), 400
+            if coins_to_use > total:
+                return jsonify({'success': False, 'message': 'Coins used cannot exceed the order total.'}), 400
             redeemable = get_redeemable_items()
             for i in items:
                 base_name = i['name'].split(' [')[0]
@@ -230,9 +293,19 @@ def api_order():
                     return jsonify({'success': False, 'message': f'Cannot use coins for {base_name}'}), 400
 
         currency_paid = max(0, total - coins_to_use)
-        max_id = db.session.query(db.func.max(Order.order_id)).scalar()
-        order_id = (max_id or 0) + 1
         time_now = datetime.now().strftime("%d-%m-%Y %I:%M %p")
+
+        # Collision-safe order_id: max()+1 can race under concurrent orders;
+        # retry a few times on the unique-constraint violation instead.
+        order_id = None
+        for _attempt in range(5):
+            max_id = db.session.query(db.func.max(Order.order_id)).scalar()
+            candidate = (max_id or 0) + 1 + _attempt
+            if not Order.query.filter_by(order_id=candidate).first():
+                order_id = candidate
+                break
+        if order_id is None:
+            return jsonify({'success': False, 'message': 'Could not allocate an order number, please retry.'}), 503
 
         # GST-compliant bill (Indian law: menu prices are GST-inclusive).
         from helpers import compute_gst, generate_bill_image_url

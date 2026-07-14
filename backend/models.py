@@ -19,6 +19,7 @@ class User(db.Model):
     coins = db.Column(db.Integer, default=0)
     orders = db.relationship('Order', backref='customer', lazy=True)
     reset_token = db.Column(db.String(100), nullable=True)
+    reset_token_expires = db.Column(db.DateTime, nullable=True)
     current_streak = db.Column(db.Integer, default=0)
     longest_streak = db.Column(db.Integer, default=0)
     last_order_date = db.Column(db.String(20), nullable=True)

@@ -22,21 +22,29 @@ def ensure_schema():
     """
     try:
         insp = sa_inspect(db.engine)
-        if 'order' not in insp.get_table_names():
-            return
-        existing = {c['name'] for c in insp.get_columns('order')}
-        additions = {
-            'channel': 'VARCHAR(20)',
-            'customer_label': 'VARCHAR(80)',
-            'table_label': 'VARCHAR(20)',
-            'upi_qr_id': 'VARCHAR(64)',
-            'upi_qr_url': 'VARCHAR(500)',
-        }
+        tables = set(insp.get_table_names())
         added = False
-        for col, ddl in additions.items():
-            if col not in existing:
-                db.session.execute(text(f'ALTER TABLE "order" ADD COLUMN {col} {ddl}'))
+
+        if 'order' in tables:
+            existing = {c['name'] for c in insp.get_columns('order')}
+            additions = {
+                'channel': 'VARCHAR(20)',
+                'customer_label': 'VARCHAR(80)',
+                'table_label': 'VARCHAR(20)',
+                'upi_qr_id': 'VARCHAR(64)',
+                'upi_qr_url': 'VARCHAR(500)',
+            }
+            for col, ddl in additions.items():
+                if col not in existing:
+                    db.session.execute(text(f'ALTER TABLE "order" ADD COLUMN {col} {ddl}'))
+                    added = True
+
+        if 'user' in tables:
+            existing_user = {c['name'] for c in insp.get_columns('user')}
+            if 'reset_token_expires' not in existing_user:
+                db.session.execute(text('ALTER TABLE "user" ADD COLUMN reset_token_expires TIMESTAMP'))
                 added = True
+
         if added:
             db.session.commit()
     except Exception as exc:  # pragma: no cover - never block boot on a migration hiccup

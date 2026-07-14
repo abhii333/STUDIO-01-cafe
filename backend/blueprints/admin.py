@@ -13,6 +13,7 @@ from models import (db, Order, User, Reservation, OrderAudit, Special, MenuItem,
                     Category, Table, Photo, Event, EventRegistration, Offer, OfferItem)
 from helpers import admin_required, current_user_id, send_order_email, _offer_dict, _event_dict
 from services import cloudinary, maybe_capture_exception, razorpay_client
+from blueprints.orders import _recompute_item_unit_price
 
 admin_bp = Blueprint('admin', __name__)
 
@@ -59,15 +60,19 @@ def pos_order():
             continue
         name = str(it.get('name', '')).strip()[:120]
         try:
-            price = float(it.get('price', 0) or 0)
             qty = int(it.get('quantity', 1) or 1)
         except (TypeError, ValueError):
             continue
-        if not name or qty <= 0 or price < 0:
+        if not name or qty <= 0:
             continue
         qty = min(qty, 99)
-        items.append({'name': name, 'price': price, 'quantity': qty})
-        total += price * qty
+        # Trust the menu price, not whatever the client sent — same principle
+        # as the customer checkout, so POS totals can't be tampered with either.
+        base_name, unit_price = _recompute_item_unit_price(name)
+        if unit_price is None:
+            return jsonify({'success': False, 'message': f'Unknown item or add-on: {name}'}), 400
+        items.append({'name': name, 'price': round(unit_price, 2), 'quantity': qty})
+        total += unit_price * qty
     if not items:
         return jsonify({'success': False, 'message': 'Add at least one item to the order.'}), 400
 

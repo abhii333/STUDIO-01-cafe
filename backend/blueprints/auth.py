@@ -1,5 +1,6 @@
 """Authentication blueprint: register, login, refresh, password reset/change."""
 import secrets
+from datetime import datetime, timedelta
 
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, create_access_token
@@ -13,6 +14,7 @@ auth_bp = Blueprint('auth', __name__)
 
 
 @auth_bp.route('/api/auth/register', methods=['POST'])
+@limiter.limit("5 per minute")
 def register():
     data = request.get_json(silent=True) or {}
     username = (data.get('username') or '').strip()
@@ -73,12 +75,14 @@ def refresh():
 
 
 @auth_bp.route('/api/auth/forgot-password', methods=['POST'])
+@limiter.limit("5 per minute")
 def forgot_password():
     data = request.get_json(silent=True) or {}
     user = User.query.filter_by(email=(data.get('email') or '').strip()).first()
     if user:
         token = secrets.token_urlsafe(16)
         user.reset_token = token
+        user.reset_token_expires = datetime.utcnow() + timedelta(hours=1)
         db.session.commit()
         print(f"\n[RESET TOKEN FOR {user.username}]: {token}\n")
     # Generic response either way (do not reveal whether the email exists)
@@ -87,6 +91,7 @@ def forgot_password():
 
 
 @auth_bp.route('/api/auth/reset-password', methods=['POST'])
+@limiter.limit("5 per minute")
 def reset_password():
     data = request.get_json(silent=True) or {}
     token = data.get('token')
@@ -96,8 +101,16 @@ def reset_password():
     user = User.query.filter_by(reset_token=token).first()
     if not user:
         return jsonify({'success': False, 'message': 'Invalid or expired token.'}), 400
+    # Tokens issued before this feature existed have no expiry set — treat as
+    # expired so they must request a fresh one, rather than trusting them forever.
+    if not user.reset_token_expires or datetime.utcnow() > user.reset_token_expires:
+        user.reset_token = None
+        user.reset_token_expires = None
+        db.session.commit()
+        return jsonify({'success': False, 'message': 'Invalid or expired token.'}), 400
     user.password = hash_password(password)
     user.reset_token = None
+    user.reset_token_expires = None
     db.session.commit()
     return jsonify({'success': True, 'message': 'Password reset successfully.'})
 
