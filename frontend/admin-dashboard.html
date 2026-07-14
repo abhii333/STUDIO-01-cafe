@@ -121,8 +121,8 @@
                         <button data-type="dine-in" class="active">Dine-in</button>
                         <button data-type="takeaway">Takeaway</button>
                     </div></div>
-                    <input id="posTable" placeholder="Table number (e.g. T5)">
-                    <input id="posCustomer" placeholder="Customer name (optional)">
+                    <input id="posTable" placeholder="Table number (required for dine-in)">
+                    <input id="posCustomer" placeholder="Customer name (required)">
                     <div id="posTicket" style="margin:10px 0"><p style="color:var(--text-muted);font-size:.85rem">Tap menu items to add them.</p></div>
                     <div style="display:flex;justify-content:space-between;align-items:center;margin:12px 0;padding-top:12px;border-top:2px solid var(--border)">
                         <strong style="font-family:var(--font-h);font-size:1.2rem">Total</strong>
@@ -714,6 +714,7 @@
             document.getElementById('posTotal').textContent = '₹' + total;
         }
         function clearPosTicket() {
+            _lastBillItems = Object.values(_posTicket).map(l => ({name: l.name, price: l.price, quantity: l.qty}));
             _posTicket = {};
             document.getElementById('posTable').value = '';
             document.getElementById('posCustomer').value = '';
@@ -728,28 +729,35 @@
         async function submitPosOrder() {
             const msg = document.getElementById('posMsg');
             const items = Object.values(_posTicket).map(l => ({ name: l.name, price: l.price, quantity: l.qty }));
-            if (!items.length) { msg.textContent = 'Add at least one item.'; return; }
+            if (!items.length) { msg.textContent = 'Add at least one item.'; msg.style.color = '#dc3545'; return; }
+            const customerName = document.getElementById('posCustomer').value.trim();
+            const tableNum = document.getElementById('posTable').value.trim();
+            // Mandatory: customer name always, table number for dine-in.
+            if (!customerName) { msg.textContent = 'Customer name is required.'; msg.style.color = '#dc3545'; return; }
+            if (_posType === 'dine-in' && !tableNum) { msg.textContent = 'Table number is required for dine-in.'; msg.style.color = '#dc3545'; return; }
             const body = {
                 items,
                 order_type: _posType,
-                table_number: _posType === 'dine-in' ? document.getElementById('posTable').value.trim() : '',
-                customer_name: document.getElementById('posCustomer').value.trim(),
+                table_number: tableNum,
+                customer_name: customerName,
                 payment_method: document.getElementById('posPayment').value,
                 mark_paid: document.getElementById('posPaid').checked,
             };
             const res = await API.authFetch('/api/admin/pos-order', { method: 'POST', json: body });
             const d = await res.json();
             if (res.ok && d.success) {
+                _lastBillData = d;  // store for WhatsApp sharing
                 clearPosTicket();
                 loadData();  // refresh the orders board
                 if (d.upi_qr && d.upi_qr.image_url) {
-                    openQrModal(d.order_id, d.upi_qr.image_url, d.upi_qr.amount);  // scan-to-pay, auto-confirms
+                    openQrModal(d.order_id, d.upi_qr.image_url, d.upi_qr.amount, d);  // scan-to-pay, auto-confirms
                 } else {
                     msg.style.color = '#28a745';
                     let note = `Order #${d.order_id} placed (${d.status}).`;
                     if (d.upi_qr_error) note += ' ' + d.upi_qr_error;
                     msg.textContent = note;
-                    setTimeout(() => { msg.style.color = 'var(--text-muted)'; msg.textContent = ''; }, 5000);
+                    // Show WhatsApp share for non-UPI too (share the bill receipt).
+                    showBillShareOption(d);
                 }
             } else {
                 msg.style.color = '#dc3545';
@@ -762,10 +770,73 @@
         let _qrPoll = null;
         let _qrImageUrl = '';
         let _qrAmountVal = 0;
-        function openQrModal(orderId, imageUrl, amount) {
+        let _lastBillData = null;
+
+        function showBillShareOption(d) {
+            // Show a mini WhatsApp share prompt after placing a non-UPI order.
+            const msg = document.getElementById('posMsg');
+            msg.innerHTML = `<span style="color:#28a745">Order #${d.order_id} placed (${d.status}).</span> `
+                + `<button class="btn" style="background:#25D366;padding:5px 12px;font-size:.75rem;margin-left:8px" onclick="openBillShare()"><iconify-icon icon="logos:whatsapp-icon" width="14"></iconify-icon> Share Bill on WhatsApp</button> `
+                + `<button class="btn" style="background:var(--espresso);padding:5px 12px;font-size:.75rem;margin-left:4px" onclick="printBill()"><iconify-icon icon="lucide:printer" width="14"></iconify-icon> Print</button>`;
+        }
+        function openBillShare() {
+            if (!_lastBillData) return;
+            const d = _lastBillData;
+            const phone = prompt('Enter customer mobile number (10 digits):');
+            if (!phone || phone.replace(/\D/g, '').length < 10) { alert('Enter a valid 10-digit number.'); return; }
+            const num = phone.replace(/\D/g, '');
+            const fullNum = num.length === 10 ? '91' + num : num;
+            const waMsg = buildBillWhatsAppMsg(d);
+            window.open('https://wa.me/' + fullNum + '?text=' + encodeURIComponent(waMsg), '_blank');
+        }
+        function printBill() {
+            if (!_lastBillData || !_lastBillData.bill_text) { alert('No bill data.'); return; }
+            const w = window.open('', '_blank', 'width=400,height=600');
+            w.document.write('<html><head><title>Bill</title><style>body{font-family:monospace;white-space:pre-wrap;padding:20px;font-size:13px}</style></head><body>' + esc(_lastBillData.bill_text) + '</body></html>');
+            w.document.close();
+            w.print();
+        }
+        function buildBillWhatsAppMsg(d) {
+            const gst = d.gst || {};
+            const items = (d.items || _lastBillItems || []);
+            let lines = [];
+            lines.push('☕ *' + (d.customer_name ? d.customer_name + ' — ' : '') + 'STUDIO 01*');
+            lines.push('');
+            lines.push('📋 *Bill #' + d.order_id + '*');
+            if (d.table) lines.push('🪑 Table: ' + d.table);
+            lines.push('📅 ' + (d.date_time || new Date().toLocaleString('en-IN')));
+            lines.push('');
+            lines.push('━━━━━━━━━━━━━━━━');
+            if (items.length) {
+                items.forEach(function(it) { lines.push(it.name + ' ×' + it.quantity + '  ₹' + (it.price * it.quantity)); });
+            }
+            lines.push('━━━━━━━━━━━━━━━━');
+            if (gst.base_amount != null) {
+                lines.push('Base: ₹' + gst.base_amount);
+                lines.push('CGST @' + gst.cgst_rate + '%: ₹' + gst.cgst);
+                lines.push('SGST @' + gst.sgst_rate + '%: ₹' + gst.sgst);
+            }
+            lines.push('*Total: ₹' + d.total + '* (incl. GST)');
+            lines.push('');
+            if (d.bill_image_url) {
+                lines.push('🧾 View/scan bill: ' + d.bill_image_url);
+                lines.push('');
+            }
+            if (d.upi_qr && d.upi_qr.image_url) {
+                lines.push('💳 Pay here: ' + d.upi_qr.image_url);
+                lines.push('');
+            }
+            lines.push('🌿 *Going paperless — one tree at a time.*');
+            lines.push('Thank you for visiting STUDIO 01!');
+            return lines.join('\n');
+        }
+        let _lastBillItems = [];  // saved from ticket before clear
+
+        function openQrModal(orderId, imageUrl, amount, billData) {
             _qrOrderId = orderId;
             _qrImageUrl = imageUrl;
             _qrAmountVal = amount;
+            if (billData) _lastBillData = billData;
             document.getElementById('qrOrderId').textContent = '#' + orderId;
             document.getElementById('qrAmount').textContent = '₹' + amount;
             document.getElementById('qrImage').src = imageUrl;
@@ -816,24 +887,12 @@
             const phone = (document.getElementById('qrPhone').value || '').replace(/\D/g, '');
             const msg = document.getElementById('qrWhatsappMsg');
             if (phone.length < 10) { msg.textContent = 'Enter a valid 10-digit mobile number.'; msg.style.color = '#dc3545'; return; }
-            const num = phone.length === 10 ? '91' + phone : phone; // add India country code
-            // Build a nice digital bill message.
-            const text = [
-                '☕ *STUDIO 01* — Digital Bill',
-                '',
-                '📋 *Order #' + _qrOrderId + '*',
-                '💰 *Total: ₹' + _qrAmountVal + '*',
-                '',
-                '👉 Scan or tap to pay:',
-                _qrImageUrl,
-                '',
-                '🌿 *Going paperless — one tree at a time.*',
-                '    Thank you for choosing STUDIO 01!',
-            ].join('\n');
-            const waUrl = 'https://wa.me/' + num + '?text=' + encodeURIComponent(text);
-            window.open(waUrl, '_blank');
+            const num = phone.length === 10 ? '91' + phone : phone;
+            // Build full bill message with GST breakdown + QR link.
+            const waMsg = buildBillWhatsAppMsg(_lastBillData || { order_id: _qrOrderId, total: _qrAmountVal, upi_qr: { image_url: _qrImageUrl } });
+            window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(waMsg), '_blank');
             msg.style.color = '#28a745';
-            msg.textContent = 'WhatsApp opened — send the message to the customer.';
+            msg.textContent = 'WhatsApp opened — send the bill to the customer.';
         }
 
         // ---- Analytics (Task 7) ----

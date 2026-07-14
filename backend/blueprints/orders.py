@@ -234,11 +234,25 @@ def api_order():
         order_id = (max_id or 0) + 1
         time_now = datetime.now().strftime("%d-%m-%Y %I:%M %p")
 
+        # GST-compliant bill (Indian law: menu prices are GST-inclusive).
+        from helpers import compute_gst, generate_bill_image_url
+        gst_info = compute_gst(total)
+
         bill_text = (f"STUDIO 01\nOrder {order_id}\n{time_now}\n\n" +
                      "\n".join(f"{i['name']} X {i['quantity']} = {i['price'] * i['quantity']}" for i in items) +
-                     f"\n\nPaid: Rs.{currency_paid}" + (f" + {coins_to_use} Coins" if coins_to_use else "") +
-                     f"\nTotal: Rs.{total}")
+                     f"\n\nBase: Rs.{gst_info['base_amount']}" +
+                     f"\nCGST @{gst_info['cgst_rate']}%: Rs.{gst_info['cgst']}" +
+                     f"\nSGST @{gst_info['sgst_rate']}%: Rs.{gst_info['sgst']}" +
+                     f"\nTotal (incl. GST): Rs.{total}" +
+                     (f"\nCoins used: {coins_to_use}" if coins_to_use else "") +
+                     f"\nPaid: Rs.{currency_paid}")
         bill_qr_url = f"https://quickchart.io/qr?text={quote(bill_text)}&size=300&color=1C1410&bgcolor=FAF7F2"
+
+        # Get customer name for the bill
+        user = User.query.get(user_id)
+        bill_image_url, _ = generate_bill_image_url(
+            order_id, items, gst_info, time_now,
+            customer_name=user.username if user else None, payment_method=payment_method)
 
         status = 'Paid' if payment_id else 'Pending'
         new_order = Order(order_id=order_id, user_id=user_id, items=json.dumps(items), total=total,
@@ -246,7 +260,6 @@ def api_order():
                           payment_id=payment_id, payment_method=payment_method, status=status)
         db.session.add(new_order)
 
-        user = User.query.get(user_id)
         user.coins -= coins_to_use
         coins_earned = calculate_coins(currency_paid)
         user.coins += coins_earned
@@ -265,6 +278,7 @@ def api_order():
         resp = {"order_id": order_id, "total": total, "currency_paid": currency_paid,
                 "coins_used": coins_to_use, "date_time": time_now, "coins_earned": coins_earned,
                 "new_coin_balance": new_coin_balance, "bill_qr_url": bill_qr_url,
+                "bill_image_url": bill_image_url, "gst": gst_info,
                 "payment_method": payment_method, "new_badges": new_badges}
         if not payment_id:
             resp['offline_payment'] = True

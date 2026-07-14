@@ -278,3 +278,85 @@ def _offer_is_current(o):
     if o.valid_until and today > o.valid_until:
         return False
     return True
+
+
+# ============================================================
+# GST-COMPLIANT BILL (Indian law) + Bill image URL generation
+# ============================================================
+# Default 5% GST (2.5% CGST + 2.5% SGST) for non-AC restaurants.
+# Set GST_RATE env to "18" for AC restaurants / bars.
+GST_RATE = float(os.environ.get('GST_RATE', '5'))
+CAFE_NAME = os.environ.get('CAFE_NAME', 'STUDIO 01')
+CAFE_GSTIN = os.environ.get('CAFE_GSTIN', '')  # set once GST-registered
+
+
+def compute_gst(subtotal):
+    """Compute GST breakdown from a subtotal (items total before tax).
+    Returns dict with base, cgst, sgst, gst_total, grand_total, gst_rate.
+    Indian cafes include GST in the menu price (MRP = inclusive), so we
+    reverse-calculate: base = subtotal / (1 + rate/100), tax = subtotal - base.
+    """
+    rate = GST_RATE
+    base = round(subtotal / (1 + rate / 100), 2)
+    gst_total = round(subtotal - base, 2)
+    cgst = round(gst_total / 2, 2)
+    sgst = gst_total - cgst  # avoid rounding drift
+    return {
+        'subtotal': round(subtotal, 2),
+        'base_amount': base,
+        'cgst_rate': round(rate / 2, 2),
+        'sgst_rate': round(rate / 2, 2),
+        'cgst': cgst,
+        'sgst': round(sgst, 2),
+        'gst_total': gst_total,
+        'grand_total': round(subtotal, 2),
+        'gst_rate': rate,
+    }
+
+
+def generate_bill_image_url(order_id, items, gst_info, date_time, customer_name=None, table=None, payment_method=None):
+    """Generate a hosted bill image URL using QuickChart (free).
+    Returns a URL to a PNG image of the bill that can be shared/printed.
+    """
+    from urllib.parse import quote as url_quote
+
+    lines = []
+    lines.append(CAFE_NAME)
+    if CAFE_GSTIN:
+        lines.append(f'GSTIN: {CAFE_GSTIN}')
+    lines.append('=' * 32)
+    lines.append(f'Bill No: #{order_id}')
+    lines.append(f'Date: {date_time}')
+    if customer_name:
+        lines.append(f'Customer: {customer_name}')
+    if table:
+        lines.append(f'Table: {table}')
+    lines.append('-' * 32)
+    lines.append(f'{"Item":<18}{"Qty":>3} {"Amt":>8}')
+    lines.append('-' * 32)
+    for it in items:
+        name = str(it.get('name', ''))[:18]
+        qty = it.get('quantity', 1)
+        amt = round(it.get('price', 0) * qty, 2)
+        lines.append(f'{name:<18}{qty:>3} {amt:>8.2f}')
+    lines.append('-' * 32)
+    lines.append(f'{"Subtotal":<22} {gst_info["subtotal"]:>8.2f}')
+    lines.append(f'{"Base Amount":<22} {gst_info["base_amount"]:>8.2f}')
+    lines.append(f'{"CGST @" + str(gst_info["cgst_rate"]) + "%":<22} {gst_info["cgst"]:>8.2f}')
+    lines.append(f'{"SGST @" + str(gst_info["sgst_rate"]) + "%":<22} {gst_info["sgst"]:>8.2f}')
+    lines.append('=' * 32)
+    lines.append(f'{"TOTAL":<22} {gst_info["grand_total"]:>8.2f}')
+    lines.append('=' * 32)
+    if payment_method:
+        lines.append(f'Payment: {payment_method}')
+    lines.append('')
+    lines.append('Thank you for visiting!')
+    lines.append('Go green - paperless billing')
+
+    bill_text = '\n'.join(lines)
+    # QuickChart text-to-image (free, no signup needed)
+    encoded = url_quote(bill_text)
+    # Use QuickChart's QR endpoint as a simple text-to-image isn't available,
+    # so we use the QR code of the bill text as the "bill image" (scannable receipt).
+    bill_image_url = f'https://quickchart.io/qr?text={encoded}&size=400&margin=2&dark=1C1410&light=FAF7F2'
+    return bill_image_url, bill_text

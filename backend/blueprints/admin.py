@@ -75,9 +75,20 @@ def pos_order():
     channel = 'pos-dinein' if order_type == 'dine-in' else 'pos-takeaway'
     table_label = (d.get('table_number') or '').strip()[:20] or None
     customer_label = (d.get('customer_name') or '').strip()[:80] or None
+
+    # Table number and customer name are mandatory for all POS orders.
+    if not customer_label:
+        return jsonify({'success': False, 'message': 'Customer name is required.'}), 400
+    if order_type == 'dine-in' and not table_label:
+        return jsonify({'success': False, 'message': 'Table number is required for dine-in orders.'}), 400
+
     payment_method = (d.get('payment_method') or 'Cash').strip()[:100]
     mark_paid = bool(d.get('mark_paid', True))
     total = round(total, 2)
+
+    # Compute GST breakdown (Indian law: prices are GST-inclusive).
+    from helpers import compute_gst, generate_bill_image_url
+    gst_info = compute_gst(total)
 
     # UPI + not-yet-collected + Razorpay configured => show a scan-to-pay QR that
     # auto-confirms via the webhook. Otherwise it's a manual (staff-confirmed) order.
@@ -111,7 +122,14 @@ def pos_order():
         maybe_capture_exception(exc)
     db.session.commit()
 
-    resp = {'success': True, 'order_id': new_oid, 'total': total, 'status': order.status}
+    # Generate bill image URL for sharing / printing.
+    bill_image_url, bill_text = generate_bill_image_url(
+        new_oid, items, gst_info, time_now,
+        customer_name=customer_label, table=table_label, payment_method=payment_method)
+
+    resp = {'success': True, 'order_id': new_oid, 'total': total, 'status': order.status,
+            'gst': gst_info, 'bill_image_url': bill_image_url, 'bill_text': bill_text,
+            'customer_name': customer_label, 'table': table_label}
 
     # Generate a Razorpay dynamic UPI QR for the exact amount (works in test mode
     # with test keys; swap to live keys at go-live — no code change needed).
