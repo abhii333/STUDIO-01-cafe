@@ -10,6 +10,7 @@ from flask_jwt_extended import jwt_required
 
 from models import db, GroupOrder, GroupOrderContribution, User, Order
 from helpers import current_user_id
+from blueprints.orders import _recompute_item_unit_price
 
 group_bp = Blueprint('group', __name__)
 
@@ -26,22 +27,28 @@ def _gen_join_code(length=6):
 
 
 def _clean_items(raw):
-    """Validate/normalize an incoming items list and compute its subtotal."""
+    """Validate/normalize an incoming items list and compute its subtotal.
+
+    SECURITY: prices are recomputed from the menu (same as customer checkout
+    and POS) — a participant's submitted price is never trusted directly.
+    """
     items, subtotal = [], 0.0
     for it in (raw or []):
         if not isinstance(it, dict):
             continue
         name = str(it.get('name', '')).strip()[:120]
         try:
-            price = float(it.get('price', 0) or 0)
             qty = int(it.get('quantity', 1) or 1)
         except (TypeError, ValueError):
             continue
-        if not name or qty <= 0 or price < 0:
+        if not name or qty <= 0:
             continue
         qty = min(qty, 99)
-        items.append({'name': name, 'price': price, 'quantity': qty})
-        subtotal += price * qty
+        _, unit_price = _recompute_item_unit_price(name)
+        if unit_price is None:
+            continue  # unknown item/add-on — silently dropped, not charged
+        items.append({'name': name, 'price': round(unit_price, 2), 'quantity': qty})
+        subtotal += unit_price * qty
     return items, round(subtotal, 2)
 
 
@@ -195,8 +202,16 @@ def place_group_order(code):
         return jsonify({'success': False, 'message': 'No items in the group order yet.'}), 400
 
     grand = round(grand, 2)
-    max_id = db.session.query(db.func.max(Order.order_id)).scalar()
-    new_oid = (max_id or 0) + 1
+    # Collision-safe order_id (same pattern as customer checkout / POS).
+    new_oid = None
+    for _attempt in range(5):
+        max_id = db.session.query(db.func.max(Order.order_id)).scalar()
+        candidate = (max_id or 0) + 1 + _attempt
+        if not Order.query.filter_by(order_id=candidate).first():
+            new_oid = candidate
+            break
+    if new_oid is None:
+        return jsonify({'success': False, 'message': 'Could not allocate an order number, please retry.'}), 503
     time_now = datetime.now().strftime("%d-%m-%Y %I:%M %p")
     db.session.add(Order(order_id=new_oid, user_id=group.host_id, items=json.dumps(all_items),
                          total=grand, coins_used=0, currency_paid=grand, date_time=time_now,

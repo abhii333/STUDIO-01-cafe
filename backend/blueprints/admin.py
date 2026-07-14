@@ -99,8 +99,17 @@ def pos_order():
     # auto-confirms via the webhook. Otherwise it's a manual (staff-confirmed) order.
     wants_online_upi = payment_method.strip().upper() == 'UPI' and not mark_paid and razorpay_client is not None
 
-    max_id = db.session.query(db.func.max(Order.order_id)).scalar()
-    new_oid = (max_id or 0) + 1
+    # Collision-safe order_id (same pattern as customer checkout): max()+1 can
+    # race if two staff members ring up orders at the same instant.
+    new_oid = None
+    for _attempt in range(5):
+        max_id = db.session.query(db.func.max(Order.order_id)).scalar()
+        candidate = (max_id or 0) + 1 + _attempt
+        if not Order.query.filter_by(order_id=candidate).first():
+            new_oid = candidate
+            break
+    if new_oid is None:
+        return jsonify({'success': False, 'message': 'Could not allocate an order number, please retry.'}), 503
     time_now = datetime.now().strftime("%d-%m-%Y %I:%M %p")
 
     if wants_online_upi:
@@ -171,13 +180,19 @@ def order_status(oid):
                     'paid': o.status == 'Paid', 'payment_id': o.payment_id})
 
 
+_VALID_STATUSES = {'Pending', 'Preparing', 'Ready', 'Completed', 'Paid'}
+
+
 @admin_bp.route('/api/admin/update-order-status', methods=['POST'])
 @admin_required
 def update_status():
     data = request.get_json(silent=True) or {}
+    status = data.get('status')
+    if status not in _VALID_STATUSES:
+        return jsonify({'success': False, 'message': 'Invalid status.'}), 400
     o = Order.query.filter_by(order_id=data.get('order_id')).first()
     if o:
-        o.status = data.get('status')
+        o.status = status
         db.session.commit()
     return jsonify({"success": True})
 
