@@ -29,6 +29,8 @@ def ensure_schema():
             'channel': 'VARCHAR(20)',
             'customer_label': 'VARCHAR(80)',
             'table_label': 'VARCHAR(20)',
+            'upi_qr_id': 'VARCHAR(64)',
+            'upi_qr_url': 'VARCHAR(500)',
         }
         added = False
         for col, ddl in additions.items():

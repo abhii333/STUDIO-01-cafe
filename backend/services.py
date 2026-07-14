@@ -71,3 +71,7 @@ if razorpay is not None and razorpay_key_id and razorpay_key_secret:
 else:
     razorpay_client = None
     razorpay_init_error = 'Razorpay credentials are missing.' if not (razorpay_key_id and razorpay_key_secret) else None
+
+# Secret used to verify incoming Razorpay webhooks (set one in the Razorpay
+# dashboard when you add the webhook, and mirror it here as an env var).
+razorpay_webhook_secret = os.environ.get('RAZORPAY_WEBHOOK_SECRET')

@@ -41,6 +41,9 @@ class Order(db.Model):
     channel = db.Column(db.String(20), nullable=True)        # 'online' | 'pos-dinein' | 'pos-takeaway'
     customer_label = db.Column(db.String(80), nullable=True)  # walk-in customer name (POS)
     table_label = db.Column(db.String(20), nullable=True)     # table number for dine-in (POS)
+    # Razorpay dynamic UPI QR (POS scan-to-pay auto-confirmation).
+    upi_qr_id = db.Column(db.String(64), nullable=True)       # Razorpay qr_... id
+    upi_qr_url = db.Column(db.String(500), nullable=True)     # hosted QR image URL
 
 
 class Reservation(db.Model):

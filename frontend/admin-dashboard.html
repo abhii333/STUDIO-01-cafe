@@ -63,6 +63,8 @@
         .seg button{padding:7px 16px;border:none;background:var(--card);cursor:pointer;font-family:inherit;font-size:.8rem;font-weight:600;color:var(--text-muted)}
         .seg button.active{background:var(--terracotta);color:#fff}
         .ch-tag{display:inline-block;padding:2px 8px;border-radius:6px;font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em;background:rgba(196,112,75,.12);color:var(--terracotta);margin-left:6px}
+        .qr-spinner{width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--terracotta);border-radius:50%;display:inline-block;animation:spin .8s linear infinite}
+        @keyframes spin{to{transform:rotate(360deg)}}
         @media(max-width:900px){.grid{grid-template-columns:1fr}.pos-grid{grid-template-columns:1fr}}
     </style>
 </head>
@@ -131,7 +133,8 @@
                         <option value="Card">Card</option>
                         <option value="UPI">UPI</option>
                     </select>
-                    <label style="font-size:.85rem;display:flex;align-items:center;gap:8px;margin-bottom:12px"><input type="checkbox" id="posPaid" checked style="width:auto;margin:0"> Mark as paid now</label>
+                    <label style="font-size:.85rem;display:flex;align-items:center;gap:8px;margin-bottom:6px"><input type="checkbox" id="posPaid" checked style="width:auto;margin:0"> Mark as paid now</label>
+                    <div id="posPayHint" style="font-size:.72rem;color:var(--text-muted);margin-bottom:10px"></div>
                     <div id="posMsg" style="font-size:.8rem;color:var(--text-muted);margin-bottom:8px"></div>
                     <div style="display:flex;gap:8px">
                         <button class="btn" style="flex:1" onclick="submitPosOrder()">Place Order</button>
@@ -248,6 +251,23 @@
                 <button class="btn" onclick="addPhoto()">Add Photo</button>
             </div>
             <div id="photosList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px"></div>
+        </div>
+    </div>
+
+    <!-- POS UPI QR Modal -->
+    <div id="posQrModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);align-items:center;justify-content:center;z-index:250">
+        <div style="background:#fff;padding:24px;border-radius:16px;max-width:360px;width:92%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.25)">
+            <h3 style="font-family:var(--font-h);margin-bottom:4px">Scan to Pay</h3>
+            <p style="color:var(--text-muted);font-size:.85rem;margin-bottom:14px">Order <span id="qrOrderId"></span> · <strong id="qrAmount"></strong></p>
+            <img id="qrImage" alt="UPI QR" style="width:230px;height:230px;object-fit:contain;border:1px solid var(--border);border-radius:12px;padding:6px">
+            <div id="qrStatus" style="margin:16px 0;font-weight:600;color:var(--text-muted);display:flex;align-items:center;justify-content:center;gap:8px">
+                <span class="qr-spinner"></span> Waiting for payment…
+            </div>
+            <div style="display:flex;gap:8px;justify-content:center">
+                <button class="btn" style="background:#ccc;color:#222" onclick="closeQrModal()">Close</button>
+                <button class="btn" id="qrManualBtn" onclick="qrMarkPaidManually()">Mark paid manually</button>
+            </div>
+            <p style="color:var(--text-muted);font-size:.72rem;margin-top:12px">Auto-confirms when the customer pays. In test mode, complete the payment in your Razorpay test flow.</p>
         </div>
     </div>
 
@@ -622,7 +642,23 @@
                 renderPosCats();
                 renderPosItems();
             } catch (e) { document.getElementById('posItems').innerHTML = '<p style="color:var(--text-muted)">Could not load menu.</p>'; }
+            updatePosHint();
         }
+        function updatePosHint() {
+            const hint = document.getElementById('posPayHint');
+            if (!hint) return;
+            const method = document.getElementById('posPayment').value;
+            const paid = document.getElementById('posPaid').checked;
+            if (method === 'UPI' && !paid) {
+                hint.textContent = 'A scan-to-pay UPI QR will appear; the order auto-marks Paid when the customer pays.';
+                hint.style.color = 'var(--terracotta)';
+            } else {
+                hint.textContent = 'Order is recorded as ' + (paid ? 'Paid immediately.' : 'Pending (mark Paid later).');
+                hint.style.color = 'var(--text-muted)';
+            }
+        }
+        document.getElementById('posPayment').addEventListener('change', updatePosHint);
+        document.getElementById('posPaid').addEventListener('change', updatePosHint);
         function renderPosCats() {
             const cats = ['All', ...Object.keys(_posMenu)];
             document.getElementById('posCats').innerHTML = cats.map(c =>
@@ -696,14 +732,68 @@
             const d = await res.json();
             if (res.ok && d.success) {
                 clearPosTicket();
-                msg.style.color = '#28a745';
-                msg.textContent = `Order #${d.order_id} placed (${d.status}).`;
-                setTimeout(() => { msg.style.color = 'var(--text-muted)'; msg.textContent = ''; }, 4000);
                 loadData();  // refresh the orders board
+                if (d.upi_qr && d.upi_qr.image_url) {
+                    openQrModal(d.order_id, d.upi_qr.image_url, d.upi_qr.amount);  // scan-to-pay, auto-confirms
+                } else {
+                    msg.style.color = '#28a745';
+                    let note = `Order #${d.order_id} placed (${d.status}).`;
+                    if (d.upi_qr_error) note += ' ' + d.upi_qr_error;
+                    msg.textContent = note;
+                    setTimeout(() => { msg.style.color = 'var(--text-muted)'; msg.textContent = ''; }, 5000);
+                }
             } else {
                 msg.style.color = '#dc3545';
                 msg.textContent = d.message || 'Could not place order.';
             }
+        }
+
+        // ---- POS UPI QR modal (auto-confirm via webhook + status polling) ----
+        let _qrOrderId = null;
+        let _qrPoll = null;
+        function openQrModal(orderId, imageUrl, amount) {
+            _qrOrderId = orderId;
+            document.getElementById('qrOrderId').textContent = '#' + orderId;
+            document.getElementById('qrAmount').textContent = '₹' + amount;
+            document.getElementById('qrImage').src = imageUrl;
+            const st = document.getElementById('qrStatus');
+            st.style.color = 'var(--text-muted)';
+            st.innerHTML = '<span class="qr-spinner"></span> Waiting for payment…';
+            document.getElementById('qrManualBtn').style.display = '';
+            document.getElementById('posQrModal').style.display = 'flex';
+            startQrPoll();
+        }
+        function startQrPoll() {
+            stopQrPoll();
+            _qrPoll = setInterval(async () => {
+                if (!_qrOrderId) return;
+                try {
+                    const r = await API.authFetch('/api/admin/orders/' + _qrOrderId + '/status');
+                    if (!r.ok) return;
+                    const s = await r.json();
+                    if (s.paid) { onQrPaid(); }
+                } catch (e) { /* keep polling */ }
+            }, 3000);
+        }
+        function stopQrPoll() { if (_qrPoll) { clearInterval(_qrPoll); _qrPoll = null; } }
+        function onQrPaid() {
+            stopQrPoll();
+            const st = document.getElementById('qrStatus');
+            st.style.color = '#28a745';
+            st.innerHTML = '<iconify-icon icon="lucide:check-circle" width="18"></iconify-icon> Payment received — Paid!';
+            document.getElementById('qrManualBtn').style.display = 'none';
+            loadData();
+            setTimeout(closeQrModal, 2200);
+        }
+        function closeQrModal() {
+            stopQrPoll();
+            _qrOrderId = null;
+            document.getElementById('posQrModal').style.display = 'none';
+        }
+        async function qrMarkPaidManually() {
+            if (!_qrOrderId) return;
+            await API.authFetch('/api/admin/mark-paid', { method: 'POST', json: { order_id: _qrOrderId } });
+            onQrPaid();
         }
 
         // ---- Analytics (Task 7) ----

@@ -12,7 +12,7 @@ from flask import Blueprint, request, jsonify
 from models import (db, Order, User, Reservation, OrderAudit, Special, MenuItem,
                     Category, Table, Photo, Event, EventRegistration, Offer, OfferItem)
 from helpers import admin_required, current_user_id, send_order_email, _offer_dict, _event_dict
-from services import cloudinary, maybe_capture_exception
+from services import cloudinary, maybe_capture_exception, razorpay_client
 
 admin_bp = Blueprint('admin', __name__)
 
@@ -79,14 +79,25 @@ def pos_order():
     mark_paid = bool(d.get('mark_paid', True))
     total = round(total, 2)
 
+    # UPI + not-yet-collected + Razorpay configured => show a scan-to-pay QR that
+    # auto-confirms via the webhook. Otherwise it's a manual (staff-confirmed) order.
+    wants_online_upi = payment_method.strip().upper() == 'UPI' and not mark_paid and razorpay_client is not None
+
     max_id = db.session.query(db.func.max(Order.order_id)).scalar()
     new_oid = (max_id or 0) + 1
     time_now = datetime.now().strftime("%d-%m-%Y %I:%M %p")
+
+    if wants_online_upi:
+        status, payment_id = 'Pending', None
+    elif mark_paid:
+        status, payment_id = 'Paid', f"counter-{int(datetime.utcnow().timestamp())}"
+    else:
+        status, payment_id = 'Pending', None
+
     order = Order(
         order_id=new_oid, user_id=None, items=json.dumps(items), total=total,
         coins_used=0, currency_paid=total, date_time=time_now,
-        status='Paid' if mark_paid else 'Pending',
-        payment_id=(f"counter-{int(datetime.utcnow().timestamp())}" if mark_paid else None),
+        status=status, payment_id=payment_id,
         payment_method=payment_method, channel=channel,
         customer_label=customer_label, table_label=table_label,
     )
@@ -95,11 +106,46 @@ def pos_order():
         db.session.add(OrderAudit(
             order_id=new_oid, admin_id=current_user_id(), action='pos_order',
             meta=json.dumps({'channel': channel, 'table': table_label,
-                             'customer': customer_label, 'payment': payment_method, 'paid': mark_paid})))
+                             'customer': customer_label, 'payment': payment_method, 'paid': status == 'Paid'})))
     except Exception as exc:
         maybe_capture_exception(exc)
     db.session.commit()
-    return jsonify({'success': True, 'order_id': new_oid, 'total': total, 'status': order.status})
+
+    resp = {'success': True, 'order_id': new_oid, 'total': total, 'status': order.status}
+
+    # Generate a Razorpay dynamic UPI QR for the exact amount (works in test mode
+    # with test keys; swap to live keys at go-live — no code change needed).
+    if wants_online_upi:
+        try:
+            qr = razorpay_client.qrcode.create({
+                'type': 'upi_qr',
+                'name': 'STUDIO 01',
+                'usage': 'single_use',
+                'fixed_amount': True,
+                'payment_amount': int(round(total * 100)),
+                'description': f'Order #{new_oid}',
+                'notes': {'order_ref': str(new_oid)},
+            })
+            order.upi_qr_id = qr.get('id')
+            order.upi_qr_url = qr.get('image_url')
+            db.session.commit()
+            resp['upi_qr'] = {'id': qr.get('id'), 'image_url': qr.get('image_url'), 'amount': total}
+        except Exception as exc:
+            maybe_capture_exception(exc)
+            resp['upi_qr_error'] = 'Could not create the payment QR — collect manually and mark paid.'
+
+    return jsonify(resp)
+
+
+@admin_bp.route('/api/admin/orders/<int:oid>/status')
+@admin_required
+def order_status(oid):
+    """Lightweight status poll for the POS QR screen."""
+    o = Order.query.filter_by(order_id=oid).first()
+    if not o:
+        return jsonify({'success': False, 'message': 'not found'}), 404
+    return jsonify({'success': True, 'order_id': o.order_id, 'status': o.status,
+                    'paid': o.status == 'Paid', 'payment_id': o.payment_id})
 
 
 @admin_bp.route('/api/admin/update-order-status', methods=['POST'])

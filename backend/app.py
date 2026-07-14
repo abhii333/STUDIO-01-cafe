@@ -33,6 +33,7 @@ from blueprints.orders import orders_bp
 from blueprints.admin import admin_bp
 from blueprints.social import social_bp
 from blueprints.group import group_bp
+from blueprints.webhooks import webhooks_bp
 
 
 # ============================================================
@@ -87,6 +88,7 @@ app.register_blueprint(orders_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(social_bp)
 app.register_blueprint(group_bp)
+app.register_blueprint(webhooks_bp)
 
 
 # ============================================================
