@@ -504,13 +504,10 @@
             updateCartUI();
         } else {
             if (at && uRes.status === 401) API.clearSession(); // drop expired token so the nav is clean
-            // Guests keep a cart too — loaded from sessionStorage. Give them a
-            // cart button so they can review it before logging in to check out.
-            cart = API.getCart();
+            // Guests see only Login — no cart until they log in.
+            cart = {};
             document.getElementById('navActions').innerHTML = `
-                <button class="nav-btn" id="openCart"><iconify-icon icon="lucide:shopping-bag" width="16"></iconify-icon> Cart (<span id="cartCount">0</span>)</button>
                 <a href="login.html" class="nav-btn" id="loginBtn">Login</a>`;
-            updateCartUI();
         }
     } catch(e) {
         cart = {};
@@ -637,13 +634,18 @@
     // Customize Modal
     let currentCustItem = {};
     function openCustomize(name, cat, basePrice) {
+        // Login required before any cart activity — no guest carts.
+        if (!(window.API && API.isLoggedIn())) {
+            showToast('Please log in to add items to your cart', 'lucide:alert-circle');
+            API.setReturnUrl('index.html');
+            setTimeout(() => { window.location = 'login.html'; }, 800);
+            return;
+        }
         // Staff previewing the storefront can't place customer orders here.
         if (isAdminPreview) {
             showToast('Ordering is disabled in staff preview — use the POS in your dashboard.', 'lucide:info');
             return;
         }
-        // Guests can build a cart (saved to sessionStorage); login is required
-        // only at checkout.
         currentCustItem = {name, cat, basePrice};
         const opts = customData[cat];
         if(!opts || opts.length === 0) { addToCart(name, basePrice, []); return; }
@@ -1010,6 +1012,10 @@
                 setTimeout(()=>{ window.location = 'login.html'; }, 800);
                 return;
             }
+            if(isAdminPreview) {
+                showToast('Table booking is disabled in staff preview.', 'lucide:info');
+                return;
+            }
             const name = document.getElementById('bookName').value.trim();
             const email = document.getElementById('bookEmail').value.trim();
             const date = document.getElementById('bookDate').value;
@@ -1057,6 +1063,9 @@
     renderTabs();
     renderGrid();
     updateCartUI();
+    // Expose openCustomize globally so recommendation cards (rendered in
+    // a separate script block) can call it via inline onclick.
+    window.openCustomize = openCustomize;
     // Reveal hero elements
     document.querySelector('.hero-content').classList.add('reveal');
     setTimeout(()=>document.querySelector('.hero-content').classList.add('revealed'),120);
