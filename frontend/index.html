@@ -1111,7 +1111,7 @@
   function itemCard(x) {
     const img = x.image_url || FB;
     const reason = x.reason ? '<div class="menu-card-reason" style="font-size:.65rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--terracotta);margin-bottom:6px;display:flex;align-items:center;gap:4px"><iconify-icon icon="lucide:sparkles" width="11"></iconify-icon>'+esc(x.reason)+'</div>' : '';
-    return '<div class="menu-card"><img class="menu-card-img" src="'+esc(img)+'" alt="'+esc(x.name)+'" onerror="this.onerror=null;this.src=\'/static/placeholder.svg\'"><div class="menu-card-body">'+reason+'<div class="menu-card-name">'+esc(x.name)+'</div><div class="menu-card-desc">'+esc(x.description||'')+'</div><div class="menu-card-footer"><span class="menu-card-price">Rs.'+x.price+'</span><button class="menu-card-add" data-name="'+esc(x.name)+'" data-price="'+x.price+'" data-cat="'+esc(x.category||'')+'" onclick="openCustomize(\''+esc(x.name).replace(/'/g,"\\'")+'\',\''+esc(x.category||'').replace(/'/g,"\\'")+'\','+x.price+')">+</button></div></div></div>';
+    return '<div class="menu-card"><img class="menu-card-img" src="'+esc(img)+'" alt="'+esc(x.name)+'" onerror="this.onerror=null;this.src=\'/static/placeholder.svg\'"><div class="menu-card-body">'+reason+'<div class="menu-card-name">'+esc(x.name)+'</div><div class="menu-card-desc">'+esc(x.description||'')+'</div><div class="menu-card-footer"><span class="menu-card-price">Rs.'+x.price+'</span><button class="menu-card-add reco-add" data-name="'+esc(x.name)+'" data-price="'+x.price+'" data-cat="'+esc(x.category||'')+'">+</button></div></div></div>';
   }
 
   (async function () {
@@ -1122,6 +1122,12 @@
       if (Array.isArray(recs) && recs.length) {
         document.getElementById('recoGrid').innerHTML = recs.map(itemCard).join('');
         document.getElementById('recoWrap').style.display = 'block';
+        // Bind click handlers via event delegation (avoids inline onclick escaping issues).
+        document.querySelectorAll('#recoGrid .reco-add').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            window.openCustomize(btn.dataset.name, btn.dataset.cat, parseFloat(btn.dataset.price));
+          });
+        });
       }
     } catch (e) {}
   })();
