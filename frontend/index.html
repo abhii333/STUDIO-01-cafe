@@ -698,6 +698,17 @@
         document.getElementById('custOverlay').classList.remove('open');
     }
 
+    // Recommendation cards are rendered by a separate script block. Use event
+    // delegation here (in openCustomize's own scope) so their "+" buttons work
+    // reliably — no dependency on window.openCustomize being assigned later.
+    document.addEventListener('click', function(e) {
+        const rb = e.target.closest && e.target.closest('.reco-add');
+        if (rb) {
+            e.preventDefault();
+            openCustomize(rb.dataset.name, rb.dataset.cat, parseFloat(rb.dataset.price));
+        }
+    });
+
     // Cart Logic
     function addToCart(name, price, customizations) {
         const key = customizations.length ? `${name} [${customizations.join(', ')}]` : name;
@@ -1122,12 +1133,8 @@
       if (Array.isArray(recs) && recs.length) {
         document.getElementById('recoGrid').innerHTML = recs.map(itemCard).join('');
         document.getElementById('recoWrap').style.display = 'block';
-        // Bind click handlers via event delegation (avoids inline onclick escaping issues).
-        document.querySelectorAll('#recoGrid .reco-add').forEach(function(btn) {
-          btn.addEventListener('click', function() {
-            window.openCustomize(btn.dataset.name, btn.dataset.cat, parseFloat(btn.dataset.price));
-          });
-        });
+        // Click handling is done via a delegated listener in the main script
+        // block (matches on .reco-add), so no per-button binding needed here.
       }
     } catch (e) {}
   })();
