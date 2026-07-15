@@ -17,6 +17,7 @@ from datetime import datetime, timedelta, timezone
 
 from flask import Flask, jsonify
 from flask_cors import CORS
+from flask_compress import Compress
 
 # Re-export models (tests import e.g. `from app import Category`) and db.
 from models import (db, User, Order, Reservation, Review, ReferralCode, Special,  # noqa: F401
@@ -69,6 +70,23 @@ app.config['RATELIMIT_HEADERS_ENABLED'] = True
 db.init_app(app)
 jwt.init_app(app)
 limiter.init_app(app)
+
+# Compress JSON/text API responses (gzip + brotli). The client negotiates via
+# Accept-Encoding. Threshold: only compress responses >= 500 bytes (avoids
+# overhead on tiny health-check responses). Already-compressed payloads (images)
+# are excluded by MIME type.
+app.config['COMPRESS_MIN_SIZE'] = 500
+app.config['COMPRESS_ALGORITHM'] = ['br', 'gzip']  # prefer brotli, fall back to gzip
+app.config['COMPRESS_MIMETYPES'] = [
+    'application/json',
+    'text/html',
+    'text/plain',
+    'text/css',
+    'text/javascript',
+    'application/javascript',
+    'text/event-stream',
+]
+Compress(app)
 
 # CORS: allow the configured frontend origin (defaults to * for local dev).
 # Auth uses bearer tokens, not cookies, so credentials are not required.
