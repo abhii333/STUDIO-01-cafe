@@ -15,6 +15,8 @@ from helpers import (current_user_id, get_redeemable_items, calculate_coins, upd
                      evaluate_and_award_badges, badges_payload, user_public, send_order_email,
                      verify_razorpay_signature, _conflicting_table_ids)
 from services import razorpay_client, razorpay_init_error, maybe_capture_exception
+from cache import (api_cache, CACHE_TTL_MENU, CACHE_TTL_REVIEWS, CACHE_TTL_SOLDOUT,
+                   CACHE_TTL_SPECIAL)
 
 orders_bp = Blueprint('orders', __name__)
 
@@ -90,6 +92,9 @@ def _recompute_item_unit_price(cart_name):
 # ============================================================
 @orders_bp.route('/api/menu')
 def api_menu():
+    cached = api_cache.get('menu')
+    if cached:
+        return cached
     categories = Category.query.options(joinedload(Category.items)).all()
     # Preferred display order — Starters first, Beverages last.
     _CAT_ORDER = ["Starters", "Soups & Salads", "Gourmet Sandwiches", "Main Course", "Desserts", "Beverages"]
@@ -108,7 +113,9 @@ def api_menu():
                 "image_url": item.image_url, "sold_out": item.is_sold_out,
             } for item in cat.items
         }
-    return jsonify({"menu": menu_dict, "customizations": CUSTOMIZATIONS})
+    resp = jsonify({"menu": menu_dict, "customizations": CUSTOMIZATIONS})
+    api_cache.set('menu', resp, ttl=CACHE_TTL_MENU)
+    return resp
 
 
 @orders_bp.route('/api/redeemable-items')
@@ -118,27 +125,43 @@ def api_redeemable():
 
 @orders_bp.route('/api/special')
 def api_special():
+    cached = api_cache.get('special')
+    if cached:
+        return cached
     s = Special.query.filter_by(active=True).first()
     if not s:
-        return jsonify({"active": False})
-    return jsonify({"active": True, "item": s.item, "discount": s.discount})
+        resp = jsonify({"active": False})
+    else:
+        resp = jsonify({"active": True, "item": s.item, "discount": s.discount})
+    api_cache.set('special', resp, ttl=CACHE_TTL_SPECIAL)
+    return resp
 
 
 @orders_bp.route('/api/soldout')
 def api_soldout():
+    cached = api_cache.get('soldout')
+    if cached:
+        return cached
     items = MenuItem.query.filter_by(is_sold_out=True).with_entities(MenuItem.name).all()
-    return jsonify([i[0] for i in items])
+    resp = jsonify([i[0] for i in items])
+    api_cache.set('soldout', resp, ttl=CACHE_TTL_SOLDOUT)
+    return resp
 
 
 @orders_bp.route('/api/reviews')
 def api_reviews():
+    cached = api_cache.get('reviews')
+    if cached:
+        return cached
     reviews = Review.query.all()
     res = {}
     for r in reviews:
         res.setdefault(r.item_name, {"total": 0, "count": 0})
         res[r.item_name]["total"] += r.rating
         res[r.item_name]["count"] += 1
-    return jsonify({item: round(d["total"] / d["count"], 1) for item, d in res.items()})
+    resp = jsonify({item: round(d["total"] / d["count"], 1) for item, d in res.items()})
+    api_cache.set('reviews', resp, ttl=CACHE_TTL_REVIEWS)
+    return resp
 
 
 # ============================================================
@@ -178,6 +201,7 @@ def submit_review(oid):
                  rating=int(data['rating']), comment=(data.get('comment') or '')[:200])
     db.session.add(rev)
     db.session.commit()
+    api_cache.invalidate('reviews')
     return jsonify({"success": True})
 
 

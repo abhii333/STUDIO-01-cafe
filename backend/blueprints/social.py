@@ -11,6 +11,7 @@ from sqlalchemy.orm import joinedload
 
 from models import db, MenuItem, Order, Photo, User, Event, EventRegistration, Offer
 from helpers import current_user_id, _offer_dict, _offer_is_current, _event_dict
+from cache import api_cache, CACHE_TTL_EVENTS, CACHE_TTL_OFFERS, CACHE_TTL_PHOTOS
 
 social_bp = Blueprint('social', __name__)
 
@@ -147,8 +148,13 @@ def api_recommendations():
 # ============================================================
 @social_bp.route('/api/photos')
 def api_photos():
+    cached = api_cache.get('photos')
+    if cached:
+        return cached
     photos = Photo.query.order_by(Photo.id.desc()).limit(30).all()
-    return jsonify([{'id': p.id, 'image_url': p.image_url, 'caption': p.caption} for p in photos])
+    resp = jsonify([{'id': p.id, 'image_url': p.image_url, 'caption': p.caption} for p in photos])
+    api_cache.set('photos', resp, ttl=CACHE_TTL_PHOTOS)
+    return resp
 
 
 @social_bp.route('/api/user/orders/<int:oid>/share', methods=['POST'])
@@ -171,8 +177,13 @@ def share_order(oid):
 # ============================================================
 @social_bp.route('/api/events')
 def api_events():
+    cached = api_cache.get('events')
+    if cached:
+        return cached
     events = Event.query.filter_by(is_active=True).order_by(Event.date).all()
-    return jsonify([_event_dict(e) for e in events])
+    resp = jsonify([_event_dict(e) for e in events])
+    api_cache.set('events', resp, ttl=CACHE_TTL_EVENTS)
+    return resp
 
 
 @social_bp.route('/api/events/<int:eid>/register', methods=['POST'])
@@ -197,4 +208,9 @@ def register_event(eid):
 # ============================================================
 @social_bp.route('/api/offers')
 def api_offers():
-    return jsonify([_offer_dict(o) for o in Offer.query.all() if _offer_is_current(o)])
+    cached = api_cache.get('offers')
+    if cached:
+        return cached
+    resp = jsonify([_offer_dict(o) for o in Offer.query.all() if _offer_is_current(o)])
+    api_cache.set('offers', resp, ttl=CACHE_TTL_OFFERS)
+    return resp

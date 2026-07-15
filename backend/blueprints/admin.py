@@ -14,10 +14,31 @@ from models import (db, Order, User, Reservation, OrderAudit, Special, MenuItem,
 from helpers import admin_required, current_user_id, send_order_email, _offer_dict, _event_dict
 from services import cloudinary, maybe_capture_exception, razorpay_client
 from blueprints.orders import _recompute_item_unit_price
+from cache import api_cache
 
 admin_bp = Blueprint('admin', __name__)
 
 MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5 MB
+
+
+@admin_bp.after_request
+def _invalidate_caches(response):
+    """Auto-invalidate cached API responses after successful admin mutations."""
+    if response.status_code < 400 and request.method in ('POST', 'PUT', 'PATCH', 'DELETE'):
+        path = request.path
+        if 'menu-item' in path or 'categories' in path:
+            api_cache.invalidate('menu')
+        if 'soldout' in path:
+            api_cache.invalidate('soldout', 'menu')
+        if 'special' in path:
+            api_cache.invalidate('special')
+        if 'event' in path:
+            api_cache.invalidate('events')
+        if 'offer' in path:
+            api_cache.invalidate('offers')
+        if 'photo' in path:
+            api_cache.invalidate('photos')
+    return response
 
 
 # ============================================================
