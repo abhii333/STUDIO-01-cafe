@@ -129,11 +129,14 @@ def send_order_email(order_obj, qr_url):
     msg.attach(alt)
 
     try:
-        with smtplib.SMTP(mail_host, mail_port, timeout=10) as s:
-            s.starttls()
-            if mail_user and mail_pass:
-                s.login(mail_user, mail_pass)
-            s.send_message(msg)
+        from circuit_breaker import smtp_breaker
+        def _send():
+            with smtplib.SMTP(mail_host, mail_port, timeout=10) as s:
+                s.starttls()
+                if mail_user and mail_pass:
+                    s.login(mail_user, mail_pass)
+                s.send_message(msg)
+        smtp_breaker.call(_send)
     except Exception as e:
         maybe_capture_exception(e)
 

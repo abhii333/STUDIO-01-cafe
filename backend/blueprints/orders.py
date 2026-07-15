@@ -207,10 +207,14 @@ def create_razorpay_order():
         return jsonify({"id": "mock_order", "amount": payment_amount, "currency": "INR",
                         "note": "razorpay_unavailable", "message": "Online payment could not be initialized.",
                         "details": razorpay_init_error or "No Razorpay client available."})
+    from circuit_breaker import razorpay_breaker, CircuitOpenError
     try:
-        order = razorpay_client.order.create(
-            {'amount': payment_amount, 'currency': 'INR', 'payment_capture': '1'})
+        order = razorpay_breaker.call(
+            lambda: razorpay_client.order.create({'amount': payment_amount, 'currency': 'INR', 'payment_capture': '1'}))
         return jsonify(order)
+    except CircuitOpenError:
+        return jsonify({"note": "razorpay_unavailable",
+                        "message": "Payment service temporarily unavailable. Please try again shortly."}), 503
     except Exception as exc:
         maybe_capture_exception(exc)
         return jsonify({"note": "razorpay_unavailable", "message": "Failed to connect to Razorpay.",

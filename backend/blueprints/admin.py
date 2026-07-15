@@ -147,21 +147,28 @@ def pos_order():
 
     # Generate a Razorpay dynamic UPI QR for the exact amount (works in test mode
     # with test keys; swap to live keys at go-live — no code change needed).
+    # Circuit breaker: if Razorpay is down/slow, fast-fail to manual collection
+    # instead of blocking the thread for 30s.
     if wants_online_upi:
+        from circuit_breaker import razorpay_breaker, CircuitOpenError
         try:
-            qr = razorpay_client.qrcode.create({
-                'type': 'upi_qr',
-                'name': 'STUDIO 01',
-                'usage': 'single_use',
-                'fixed_amount': True,
-                'payment_amount': int(round(total * 100)),
-                'description': f'Order #{new_oid}',
-                'notes': {'order_ref': str(new_oid)},
-            })
+            def _create_qr():
+                return razorpay_client.qrcode.create({
+                    'type': 'upi_qr',
+                    'name': 'STUDIO 01',
+                    'usage': 'single_use',
+                    'fixed_amount': True,
+                    'payment_amount': int(round(total * 100)),
+                    'description': f'Order #{new_oid}',
+                    'notes': {'order_ref': str(new_oid)},
+                })
+            qr = razorpay_breaker.call(_create_qr)
             order.upi_qr_id = qr.get('id')
             order.upi_qr_url = qr.get('image_url')
             db.session.commit()
             resp['upi_qr'] = {'id': qr.get('id'), 'image_url': qr.get('image_url'), 'amount': total}
+        except CircuitOpenError:
+            resp['upi_qr_error'] = 'Payment service temporarily unavailable — collect manually and mark paid.'
         except Exception as exc:
             maybe_capture_exception(exc)
             resp['upi_qr_error'] = 'Could not create the payment QR — collect manually and mark paid.'
@@ -316,8 +323,15 @@ def upload_image():
         return jsonify({"error": "Image too large (max 5MB)."}), 400
     if cloudinary is None:
         return jsonify({"error": "Image upload is not configured. Paste an image URL instead."}), 501
-    upload_result = cloudinary.uploader.upload(file, folder="cafe_menu")
-    return jsonify({"url": upload_result.get('secure_url')})
+    from circuit_breaker import cloudinary_breaker, CircuitOpenError
+    try:
+        result = cloudinary_breaker.call(lambda: cloudinary.uploader.upload(file, folder="cafe_menu"))
+        return jsonify({"url": result.get('secure_url')})
+    except CircuitOpenError:
+        return jsonify({"error": "Image service temporarily unavailable. Paste an image URL instead."}), 503
+    except Exception as exc:
+        maybe_capture_exception(exc)
+        return jsonify({"error": "Image upload failed. Paste an image URL instead."}), 502
 
 
 # ============================================================
