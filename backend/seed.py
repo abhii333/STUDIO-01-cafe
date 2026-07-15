@@ -53,11 +53,14 @@ def ensure_schema():
 
 
 def seed_menu():
-    """Seed menu categories and items. Idempotent — skips items that already exist.
+    """Seed the default menu ONLY on a brand-new database (no categories exist yet).
 
-    Category order: Starters → Soups & Salads → Gourmet Sandwiches → Main Course → Desserts → Beverages
-    (menu starts from Starters, beverages last).
+    Once the menu is seeded, the admin manages it entirely via the dashboard
+    (add/edit/delete items). This function NEVER re-inserts items that an admin
+    has intentionally deleted — it's a one-time first-boot setup only.
     """
+    if Category.query.first() is not None:
+        return  # menu already exists — admin owns it from here
     # Images — real Unsplash photos for each dish.
     default_imgs = {
         # Starters
@@ -148,26 +151,16 @@ def seed_menu():
 
     fallback = "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=400&fit=crop"
 
-    # Collect existing item names so we don't duplicate anything on re-seeds.
-    existing_names = {mi.name for mi in MenuItem.query.all()}
-
     for cat_name, items in menu_data:
-        # Get or create category.
-        cat = Category.query.filter_by(name=cat_name).first()
-        if not cat:
-            cat = Category(name=cat_name)
-            db.session.add(cat)
-            db.session.flush()
-        # Batch all new items for this category in one add_all.
-        new_items = []
-        for item_name, price, desc in items:
-            if item_name in existing_names:
-                continue  # skip duplicates
-            new_items.append(MenuItem(
-                name=item_name, price=price, description=desc,
-                image_url=default_imgs.get(item_name, fallback), category_id=cat.id
-            ))
-            existing_names.add(item_name)
+        cat = Category(name=cat_name)
+        db.session.add(cat)
+        db.session.flush()
+        # Batch all items for this category in one add_all.
+        new_items = [
+            MenuItem(name=item_name, price=price, description=desc,
+                     image_url=default_imgs.get(item_name, fallback), category_id=cat.id)
+            for item_name, price, desc in items
+        ]
         if new_items:
             db.session.add_all(new_items)
     db.session.commit()
