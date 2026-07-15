@@ -409,6 +409,17 @@
     let coinsToUse = 0;
     let paymentMethod = 'online';
 
+    // Register the recommendation "+" handler IMMEDIATELY (before any await),
+    // via event delegation, so it always attaches even if a later fetch fails.
+    // openCustomize is a hoisted function declaration, so it's callable here.
+    document.addEventListener('click', function(e) {
+        const rb = e.target && e.target.closest && e.target.closest('.reco-add');
+        if (rb) {
+            e.preventDefault();
+            openCustomize(rb.dataset.name, rb.dataset.cat, parseFloat(rb.dataset.price));
+        }
+    });
+
     // Shown to staff who open the customer storefront via "Preview Storefront".
     function showAdminPreviewBanner() {
         if (document.getElementById('adminPreviewBar')) return;
@@ -697,17 +708,6 @@
         document.getElementById('custModal').classList.remove('open');
         document.getElementById('custOverlay').classList.remove('open');
     }
-
-    // Recommendation cards are rendered by a separate script block. Use event
-    // delegation here (in openCustomize's own scope) so their "+" buttons work
-    // reliably — no dependency on window.openCustomize being assigned later.
-    document.addEventListener('click', function(e) {
-        const rb = e.target.closest && e.target.closest('.reco-add');
-        if (rb) {
-            e.preventDefault();
-            openCustomize(rb.dataset.name, rb.dataset.cat, parseFloat(rb.dataset.price));
-        }
-    });
 
     // Cart Logic
     function addToCart(name, price, customizations) {
