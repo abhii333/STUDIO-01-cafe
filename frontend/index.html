@@ -152,7 +152,18 @@
             .booking-inner{grid-template-columns:1fr;gap:40px}
             .form-row{grid-template-columns:1fr}
             .footer-inner{grid-template-columns:1fr}
+            /* Mobile touch improvements */
+            .menu-card-add{width:44px;height:44px;font-size:1.3rem}
+            .nav-btn{min-height:44px;display:inline-flex;align-items:center;padding:8px 12px}
+            .btn{min-height:44px}
+            .cat-tab{min-height:40px;padding:8px 14px}
+            .cart-item .qty-btn{width:36px;height:36px;font-size:1.1rem}
+            .menu-card{flex-direction:column}
+            .menu-card-img{width:100%;height:160px;border-radius:var(--radius-lg) var(--radius-lg) 0 0}
+            .hero-content h1{font-size:clamp(2.5rem,10vw,4.5rem)}
         }
+        @keyframes spin{to{transform:rotate(360deg)}}
+        #cartCount{transition:transform .2s ease}
     </style>
 </head>
 <body>
@@ -693,6 +704,9 @@
         cart[key] = cart[key] ? {...cart[key], qty: cart[key].qty + 1} : {name: key, price, qty: 1};
         saveCart();
         showToast(`Added ${name}`, 'lucide:check-circle');
+        // Optimistic visual pulse on the cart count badge.
+        const countEl = document.getElementById('cartCount');
+        if (countEl) { countEl.style.transform = 'scale(1.4)'; setTimeout(() => { countEl.style.transform = ''; }, 200); }
     }
     const redeemableCats = ['Beverages', 'Gourmet Sandwiches', 'Desserts'];
 
@@ -855,12 +869,17 @@
         }
 
         if(!(window.API && API.isLoggedIn())) {
-            // Remember the cart (already in sessionStorage) and come back here after login.
             API.setReturnUrl('index.html');
             showToast('Please log in to place your order — your cart is saved', 'lucide:alert-circle');
             setTimeout(()=>{ window.location = 'login.html'; }, 900);
             return;
         }
+
+        // Optimistic UI: immediately disable button + show processing state.
+        const placeBtn = document.getElementById('placeOrder');
+        const origBtnHTML = placeBtn.innerHTML;
+        placeBtn.disabled = true;
+        placeBtn.innerHTML = '<iconify-icon icon="lucide:loader-2" width="16" style="animation:spin .8s linear infinite"></iconify-icon> Placing order…';
 
         const selectedPaymentMethod = getSelectedPaymentMethod();
         if(selectedPaymentMethod === 'cash') {
@@ -967,7 +986,12 @@
                 payment_method: getSelectedPaymentMethod(), razorpay_order_id, razorpay_signature
             } });
         }, { errorMessage: 'Failed to save order' });
-        if(!res || !res.ok) return;
+        if(!res || !res.ok) {
+            // Roll back the button to its original state.
+            const placeBtn = document.getElementById('placeOrder');
+            if (placeBtn) { placeBtn.disabled = false; placeBtn.innerHTML = 'Place Order <iconify-icon icon="lucide:arrow-right" width="16"></iconify-icon>'; }
+            return;
+        }
         try {
             const data = await res.json();
 
