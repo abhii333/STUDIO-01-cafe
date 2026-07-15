@@ -263,15 +263,6 @@
             <div id="qrStatus" style="margin:14px 0;font-weight:600;color:var(--text-muted);display:flex;align-items:center;justify-content:center;gap:8px">
                 <span class="qr-spinner"></span> Waiting for payment…
             </div>
-            <!-- Send to customer via WhatsApp -->
-            <div id="qrWhatsapp" style="margin:12px 0;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--cream)">
-                <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:8px">Send payment link to customer's WhatsApp:</p>
-                <div style="display:flex;gap:8px">
-                    <input id="qrPhone" type="tel" placeholder="Mobile number (10 digits)" maxlength="10" style="flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:.9rem">
-                    <button class="btn" style="background:#25D366;padding:9px 14px;white-space:nowrap" onclick="sendQrWhatsApp()"><iconify-icon icon="logos:whatsapp-icon" width="16"></iconify-icon> Send</button>
-                </div>
-                <p id="qrWhatsappMsg" style="font-size:.72rem;color:var(--text-muted);margin-top:6px"></p>
-            </div>
             <div style="display:flex;gap:8px;justify-content:center">
                 <button class="btn" style="background:#ccc;color:#222" onclick="closeQrModal()">Close</button>
                 <button class="btn" id="qrManualBtn" onclick="qrMarkPaidManually()">Mark paid manually</button>
@@ -819,11 +810,7 @@
             lines.push('*Total: ₹' + d.total + '* (incl. GST)');
             lines.push('');
             if (d.bill_image_url) {
-                lines.push('🧾 View/scan bill: ' + d.bill_image_url);
-                lines.push('');
-            }
-            if (d.upi_qr && d.upi_qr.image_url) {
-                lines.push('💳 Pay here: ' + d.upi_qr.image_url);
+                lines.push('🧾 View bill: ' + d.bill_image_url);
                 lines.push('');
             }
             lines.push('🌿 *Going paperless — one tree at a time.*');
@@ -840,13 +827,10 @@
             document.getElementById('qrOrderId').textContent = '#' + orderId;
             document.getElementById('qrAmount').textContent = '₹' + amount;
             document.getElementById('qrImage').src = imageUrl;
-            document.getElementById('qrPhone').value = '';
-            document.getElementById('qrWhatsappMsg').textContent = '';
             const st = document.getElementById('qrStatus');
             st.style.color = 'var(--text-muted)';
             st.innerHTML = '<span class="qr-spinner"></span> Waiting for payment…';
             document.getElementById('qrManualBtn').style.display = '';
-            document.getElementById('qrWhatsapp').style.display = '';
             document.getElementById('posQrModal').style.display = 'flex';
             startQrPoll();
         }
@@ -869,7 +853,6 @@
             st.style.color = '#28a745';
             st.innerHTML = '<iconify-icon icon="lucide:check-circle" width="18"></iconify-icon> Payment received — Paid!';
             document.getElementById('qrManualBtn').style.display = 'none';
-            document.getElementById('qrWhatsapp').style.display = 'none';
             loadData();
             setTimeout(closeQrModal, 2200);
         }
@@ -883,18 +866,6 @@
             await API.authFetch('/api/admin/mark-paid', { method: 'POST', json: { order_id: _qrOrderId } });
             onQrPaid();
         }
-        function sendQrWhatsApp() {
-            const phone = (document.getElementById('qrPhone').value || '').replace(/\D/g, '');
-            const msg = document.getElementById('qrWhatsappMsg');
-            if (phone.length < 10) { msg.textContent = 'Enter a valid 10-digit mobile number.'; msg.style.color = '#dc3545'; return; }
-            const num = phone.length === 10 ? '91' + phone : phone;
-            // Build full bill message with GST breakdown + QR link.
-            const waMsg = buildBillWhatsAppMsg(_lastBillData || { order_id: _qrOrderId, total: _qrAmountVal, upi_qr: { image_url: _qrImageUrl } });
-            window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(waMsg), '_blank');
-            msg.style.color = '#28a745';
-            msg.textContent = 'WhatsApp opened — send the bill to the customer.';
-        }
-
         // ---- Analytics (Task 7) ----
         let _analyticsCharts = {};
         function drawAnChart(canvasId, type, labels, data, label) {
