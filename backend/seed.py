@@ -158,14 +158,18 @@ def seed_menu():
             cat = Category(name=cat_name)
             db.session.add(cat)
             db.session.flush()
+        # Batch all new items for this category in one add_all.
+        new_items = []
         for item_name, price, desc in items:
             if item_name in existing_names:
                 continue  # skip duplicates
-            db.session.add(MenuItem(
+            new_items.append(MenuItem(
                 name=item_name, price=price, description=desc,
                 image_url=default_imgs.get(item_name, fallback), category_id=cat.id
             ))
             existing_names.add(item_name)
+        if new_items:
+            db.session.add_all(new_items)
     db.session.commit()
 
 
@@ -200,8 +204,10 @@ def seed_tables():
         ('P1', 4, 'terrace'), ('P2', 6, 'terrace'),
         ('G1', 4, 'outdoor'), ('G2', 6, 'outdoor'),
     ]
-    for num, cap, loc in layout:
-        db.session.add(Table(table_number=num, capacity=cap, location=loc, is_available=True))
+    db.session.add_all([
+        Table(table_number=num, capacity=cap, location=loc, is_available=True)
+        for num, cap, loc in layout
+    ])
     db.session.commit()
 
 
@@ -216,9 +222,11 @@ def seed_badges():
         ('early_bird', 'Early Bird', 'Ordered before 9 AM', 'lucide:sunrise', 'early_bird', 1),
         ('review_master', 'Review Master', 'Wrote 5 reviews', 'lucide:star', 'review_count', 5),
     ]
-    for key, name, desc, icon, rt, rv in badges:
-        db.session.add(Badge(key=key, name=name, description=desc, icon=icon,
-                             requirement_type=rt, requirement_value=rv))
+    db.session.add_all([
+        Badge(key=key, name=name, description=desc, icon=icon,
+              requirement_type=rt, requirement_value=rv)
+        for key, name, desc, icon, rt, rv in badges
+    ])
     db.session.commit()
 
 
@@ -233,9 +241,11 @@ def seed_events():
         ('Vegan Baking Day', 'Hands-on session baking plant-based pastries and desserts.',
          '2026-02-05', '10:00', 120, 8, 999, 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=600&fit=crop'),
     ]
-    for title, desc, date, time, dur, cap, price, img in events:
-        db.session.add(Event(title=title, description=desc, date=date, time=time, duration_minutes=dur,
-                             capacity=cap, price=price, image_url=img, is_active=True))
+    db.session.add_all([
+        Event(title=title, description=desc, date=date, time=time, duration_minutes=dur,
+              capacity=cap, price=price, image_url=img, is_active=True)
+        for title, desc, date, time, dur, cap, price, img in events
+    ])
     db.session.commit()
 
 

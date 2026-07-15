@@ -195,6 +195,7 @@ def evaluate_and_award_badges(user):
     stats = _user_stats(user)
     earned_ids = {ub.badge_id for ub in UserBadge.query.filter_by(user_id=user.id).all()}
     newly = []
+    new_badge_objs = []
     for badge in Badge.query.all():
         if badge.id in earned_ids:
             continue
@@ -205,10 +206,11 @@ def evaluate_and_award_badges(user):
                (rt == 'review_count' and stats['review_count'] >= rv) or
                (rt == 'early_bird' and stats['early_bird']))
         if met:
-            db.session.add(UserBadge(user_id=user.id, badge_id=badge.id))
+            new_badge_objs.append(UserBadge(user_id=user.id, badge_id=badge.id))
             newly.append({'key': badge.key, 'name': badge.name, 'icon': badge.icon,
                           'description': badge.description})
-    if newly:
+    if new_badge_objs:
+        db.session.add_all(new_badge_objs)
         db.session.commit()
     return newly
 
