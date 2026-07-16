@@ -24,6 +24,8 @@ def register():
 
     if not username or not email or not password:
         return jsonify({'success': False, 'message': 'Username, email, and password are required.'}), 400
+    if len(password) < 8:
+        return jsonify({'success': False, 'message': 'Password must be at least 8 characters.'}), 400
     if User.query.filter_by(username=username).first():
         return jsonify({'success': False, 'message': 'Username taken.'}), 409
     if User.query.filter_by(email=email).first():
@@ -125,8 +127,8 @@ def change_password():
     if not user or not check_password_hash(user.password, data.get('current_password') or ''):
         return jsonify({'success': False, 'message': 'Current password is incorrect.'}), 400
     new_password = data.get('new_password') or ''
-    if len(new_password) < 4:
-        return jsonify({'success': False, 'message': 'New password is too short.'}), 400
+    if len(new_password) < 8:
+        return jsonify({'success': False, 'message': 'Password must be at least 8 characters.'}), 400
     user.password = hash_password(new_password)
     db.session.commit()
     return jsonify({'success': True, 'message': 'Password changed successfully.'})

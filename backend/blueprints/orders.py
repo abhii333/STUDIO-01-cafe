@@ -17,6 +17,7 @@ from helpers import (current_user_id, get_redeemable_items, calculate_coins, upd
 from services import razorpay_client, razorpay_init_error, maybe_capture_exception
 from cache import (api_cache, CACHE_TTL_MENU, CACHE_TTL_REVIEWS, CACHE_TTL_SOLDOUT,
                    CACHE_TTL_SPECIAL)
+from extensions import limiter
 
 orders_bp = Blueprint('orders', __name__)
 

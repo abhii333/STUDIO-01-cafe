@@ -49,6 +49,9 @@ def _normalize_db_url(url):
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-change-me')
+if IS_PRODUCTION and app.config['SECRET_KEY'] == 'dev-secret-change-me':
+    import warnings
+    warnings.warn("CRITICAL: SECRET_KEY is the insecure default. Set a strong random SECRET_KEY in production!", stacklevel=1)
 app.config['SQLALCHEMY_DATABASE_URI'] = _normalize_db_url(os.environ.get('DATABASE_URL')) or 'sqlite:///cafe.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # Preserve dict key insertion order in JSON responses (menu category ordering matters).
@@ -71,6 +74,7 @@ app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=30)
 # Rate limiting (in-memory; free-tier friendly). Toggle off in tests via RATELIMIT_ENABLED=0.
 app.config['RATELIMIT_ENABLED'] = os.environ.get('RATELIMIT_ENABLED', '1') != '0'
 app.config['RATELIMIT_HEADERS_ENABLED'] = True
+app.config['RATELIMIT_DEFAULT'] = '120 per minute'  # global default for all endpoints
 
 # Wire up shared extensions.
 db.init_app(app)
@@ -97,6 +101,9 @@ Compress(app)
 # CORS: allow the configured frontend origin (defaults to * for local dev).
 # Auth uses bearer tokens, not cookies, so credentials are not required.
 FRONTEND_ORIGIN = os.environ.get('FRONTEND_ORIGIN', '*')
+if IS_PRODUCTION and FRONTEND_ORIGIN == '*':
+    import warnings
+    warnings.warn("SECURITY: FRONTEND_ORIGIN is '*' in production. Set it to your actual frontend URL!", stacklevel=1)
 CORS(app, resources={r"/api/*": {"origins": FRONTEND_ORIGIN}, r"/health": {"origins": "*"}},
      supports_credentials=False)
 
@@ -143,6 +150,8 @@ def set_security_headers(response):
     response.headers.setdefault('X-Content-Type-Options', 'nosniff')
     response.headers.setdefault('X-Frame-Options', 'DENY')
     response.headers.setdefault('Referrer-Policy', 'no-referrer-when-downgrade')
+    response.headers.setdefault('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+    response.headers.setdefault('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
     return response
 
 

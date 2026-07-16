@@ -17,7 +17,7 @@ def test_duplicate_username_rejected(client):
 
 def test_login_success_and_failure(client):
     register_user(client, 'bob')
-    ok = client.post('/api/auth/login', json={'username': 'bob', 'password': 'pw12345'})
+    ok = client.post('/api/auth/login', json={'username': 'bob', 'password': 'test1234'})
     assert ok.status_code == 200 and ok.get_json()['access_token']
     bad = client.post('/api/auth/login', json={'username': 'bob', 'password': 'nope'})
     assert bad.status_code == 401

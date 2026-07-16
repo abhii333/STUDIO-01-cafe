@@ -17,7 +17,7 @@ jwt = JWTManager()
 if Limiter is not None:
     # In-memory storage (free-tier friendly, no Redis). Only decorated routes
     # are limited; enable/disable via the app's RATELIMIT_ENABLED config.
-    limiter = Limiter(key_func=get_remote_address, default_limits=[], storage_uri='memory://')
+    limiter = Limiter(key_func=get_remote_address, default_limits=["120 per minute"], storage_uri='memory://')
 else:
     class _NoopLimiter:
         """Fallback so @limiter.limit(...) is harmless if the package is absent."""

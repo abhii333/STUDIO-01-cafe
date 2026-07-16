@@ -40,7 +40,7 @@ def client():
     return flask_app.test_client()
 
 
-def register_user(client, username='alice', password='pw12345'):
+def register_user(client, username='alice', password='test1234'):
     return client.post('/api/auth/register', json={
         'username': username, 'email': f'{username}@example.com', 'password': password,
     })

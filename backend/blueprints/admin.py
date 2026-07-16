@@ -286,7 +286,7 @@ def admin_stats():
 @admin_required
 def api_admin_audits():
     page = int(request.args.get('page', 1))
-    per_page = int(request.args.get('per_page', 25))
+    per_page = min(int(request.args.get('per_page', 25)), 100)  # cap at 100 rows max
     q = OrderAudit.query.order_by(OrderAudit.timestamp.desc())
     total = q.count()
     audits = q.offset((page - 1) * per_page).limit(per_page).all()
