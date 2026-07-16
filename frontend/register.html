@@ -92,6 +92,12 @@
             requestAnimationFrame(() => t.classList.add('toast--visible'));
             setTimeout(() => { t.classList.remove('toast--visible'); setTimeout(() => t.remove(), 350); }, 3000);
         }
+        // Prefill the referral code from a shared invite link (?ref=CODE).
+        try {
+            const _ref = new URLSearchParams(location.search).get('ref');
+            if (_ref) document.getElementById('referral_code').value = _ref.trim().slice(0, 10);
+        } catch (e) {}
+
         document.getElementById('registerForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = document.getElementById('submitBtn');

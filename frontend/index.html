@@ -557,6 +557,7 @@
             isLoggedIn = true;
             const u = await uRes.json();
             userCoins = u.coins;
+            window._refCode = u.ref_code || '';   // cached for the Share & Earn flow
             // Merge any guest (sessionStorage) cart into the account cart, then load it.
             cart = API.adoptGuestCart();
             document.getElementById('navActions').innerHTML = `
@@ -1269,27 +1270,103 @@
   if (bd) bd.addEventListener('change', () => { document.getElementById('bookTableId').value=''; refreshTables(); });
   if (bt) bt.addEventListener('change', () => { document.getElementById('bookTableId').value=''; refreshTables(); });
 
-  const shareBtn = document.getElementById('modalShareBtn');
-  if (shareBtn) shareBtn.addEventListener('click', async () => {
-    if (window._lastOrderId && window.API && API.isLoggedIn()) {
-      try {
-        const res = await API.authFetch('/api/user/orders/' + window._lastOrderId + '/share', { method: 'POST' });
-        const d = await res.json();
-        stToast(d.coins_awarded > 0 ? '+10 coins for sharing!' : 'Already shared this order', d.coins_awarded > 0 ? 'lucide:coins' : 'lucide:info');
-      } catch (e) {}
+  // ---- Share & Earn ----
+  // Awards the one-time coin reward AND opens a real share option (native share
+  // sheet where supported, with a WhatsApp / copy / download fallback).
+  function shLoadScript(src) {
+    return new Promise(function (resolve, reject) {
+      if (document.querySelector('script[src="' + src + '"]')) { resolve(); return; }
+      var s = document.createElement('script'); s.src = src;
+      s.onload = resolve; s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+  function shBuildText() {
+    var code = (window._refCode || '').trim();
+    var site = location.origin + '/';
+    if (code) {
+      var link = site + 'register.html?ref=' + encodeURIComponent(code);
+      return {
+        text: 'I love STUDIO 01 \u2615 \u2014 craft coffee & a creative space. Sign up with my code "' + code + '" and we each get 50 coins!\n' + link,
+        url: link
+      };
     }
-    if (true) {
-      await loadHtml2Canvas();
-      const modal = document.getElementById('orderModal'), closeBtn = document.getElementById('modalCloseBtn');
-      shareBtn.style.visibility = 'hidden'; closeBtn.style.visibility = 'hidden';
-      try {
-        const canvas = await html2canvas(modal, { backgroundColor: '#ffffff', scale: 2 });
-        const link = document.createElement('a');
-        link.download = 'studio01-order-' + (window._lastOrderId || '') + '.png';
-        link.href = canvas.toDataURL('image/png'); link.click();
-        stToast('Receipt image downloaded — share it anywhere!', 'lucide:image');
-      } catch (e) {}
-      shareBtn.style.visibility = ''; closeBtn.style.visibility = '';
+    return { text: 'Check out STUDIO 01 \u2615 \u2014 craft coffee & a creative space!\n' + site, url: site };
+  }
+  async function shClaimReward() {
+    if (!(window._lastOrderId && window.API && API.isLoggedIn())) return;
+    try {
+      const res = await API.authFetch('/api/user/orders/' + window._lastOrderId + '/share', { method: 'POST' });
+      const d = await res.json();
+      stToast(d.coins_awarded > 0 ? '+10 coins for sharing!' : 'Already shared this order', d.coins_awarded > 0 ? 'lucide:coins' : 'lucide:info');
+    } catch (e) { /* reward is best-effort */ }
+  }
+  async function shDownloadReceipt() {
+    const shareBtn = document.getElementById('modalShareBtn');
+    const closeBtn = document.getElementById('modalCloseBtn');
+    try {
+      await shLoadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+      const modal = document.getElementById('orderModal');
+      if (shareBtn) shareBtn.style.visibility = 'hidden';
+      if (closeBtn) closeBtn.style.visibility = 'hidden';
+      const canvas = await html2canvas(modal, { backgroundColor: '#ffffff', scale: 2 });
+      const a = document.createElement('a');
+      a.download = 'studio01-order-' + (window._lastOrderId || '') + '.png';
+      a.href = canvas.toDataURL('image/png'); a.click();
+      stToast('Receipt image downloaded \u2014 share it anywhere!', 'lucide:image');
+    } catch (e) {
+      stToast('Could not create the receipt image.', 'lucide:info');
+    } finally {
+      if (shareBtn) shareBtn.style.visibility = '';
+      if (closeBtn) closeBtn.style.visibility = '';
+    }
+  }
+  function shShowFallback(share) {
+    var existing = document.getElementById('shareSheet');
+    if (existing) existing.remove();
+    var ov = document.createElement('div');
+    ov.id = 'shareSheet';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:4000;padding:16px';
+    ov.innerHTML =
+      '<div style="background:#fff;border-radius:16px;max-width:360px;width:100%;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.25)">' +
+        '<h3 style="font-family:var(--font-heading);font-size:1.25rem;margin-bottom:4px">Share STUDIO 01</h3>' +
+        '<p style="color:var(--text-muted);font-size:.85rem;margin-bottom:18px">Invite a friend \u2014 you both earn 50 coins when they sign up with your code.</p>' +
+        '<div style="display:flex;flex-direction:column;gap:10px">' +
+          '<a class="btn" id="shWa" target="_blank" rel="noopener" style="justify-content:center;background:#25D366;color:#fff;border:none">' +
+            '<iconify-icon icon="lucide:message-circle" width="16"></iconify-icon> Share on WhatsApp</a>' +
+          '<button class="btn" id="shCopy" style="justify-content:center;background:transparent;border:1px solid var(--border);color:var(--espresso)">' +
+            '<iconify-icon icon="lucide:copy" width="16"></iconify-icon> Copy invite message</button>' +
+          '<button class="btn" id="shImg" style="justify-content:center;background:transparent;border:1px solid var(--border);color:var(--espresso)">' +
+            '<iconify-icon icon="lucide:image" width="16"></iconify-icon> Download receipt image</button>' +
+        '</div>' +
+        '<button class="btn" id="shClose" style="width:100%;justify-content:center;margin-top:16px;background:var(--espresso);color:#fff;border:none">Close</button>' +
+      '</div>';
+    document.body.appendChild(ov);
+    document.getElementById('shWa').href = 'https://wa.me/?text=' + encodeURIComponent(share.text);
+    ov.addEventListener('click', function (e) { if (e.target === ov) ov.remove(); });
+    document.getElementById('shClose').onclick = function () { ov.remove(); };
+    document.getElementById('shWa').addEventListener('click', function () { setTimeout(function () { ov.remove(); }, 300); });
+    document.getElementById('shCopy').onclick = async function () {
+      try { await navigator.clipboard.writeText(share.text); stToast('Invite message copied!', 'lucide:check'); }
+      catch (e) { stToast('Copy failed \u2014 select and copy manually.', 'lucide:info'); }
+    };
+    document.getElementById('shImg').onclick = function () { ov.remove(); shDownloadReceipt(); };
+  }
+  const shareBtn = document.getElementById('modalShareBtn');
+  if (shareBtn) shareBtn.addEventListener('click', function () {
+    // Claim the coin reward in the background (doesn't need user activation).
+    shClaimReward();
+    // Build the message synchronously (from cached ref code) so navigator.share
+    // still counts as a user gesture — awaiting first would break it on Safari.
+    var share = shBuildText();
+    if (navigator.share) {
+      navigator.share({ title: 'STUDIO 01', text: share.text, url: share.url })
+        .catch(function (err) {
+          if (err && err.name === 'AbortError') return; // user closed the sheet
+          shShowFallback(share);                          // unsupported payload -> manual menu
+        });
+    } else {
+      shShowFallback(share);
     }
   });
 })();
