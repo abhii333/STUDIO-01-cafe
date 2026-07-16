@@ -47,6 +47,24 @@ def ensure_schema():
 
         if added:
             db.session.commit()
+
+        # Create indexes on existing tables (create_all only adds them to NEW tables).
+        # These are safe to run repeatedly — CREATE INDEX IF NOT EXISTS.
+        index_stmts = [
+            'CREATE INDEX IF NOT EXISTS ix_order_user_id ON "order" (user_id)',
+            'CREATE INDEX IF NOT EXISTS ix_order_status ON "order" (status)',
+            'CREATE INDEX IF NOT EXISTS ix_reservation_date ON reservation (date)',
+            'CREATE INDEX IF NOT EXISTS ix_reservation_table_id ON reservation (table_id)',
+            'CREATE INDEX IF NOT EXISTS ix_event_registration_event_id ON event_registration (event_id)',
+            'CREATE INDEX IF NOT EXISTS ix_event_registration_user_id ON event_registration (user_id)',
+        ]
+        for stmt in index_stmts:
+            try:
+                db.session.execute(text(stmt))
+            except Exception:
+                pass  # index may already exist or table missing — safe to skip
+        db.session.commit()
+
     except Exception as exc:  # pragma: no cover - never block boot on a migration hiccup
         db.session.rollback()
         print(f"[WARN] ensure_schema failed: {exc}")

@@ -33,13 +33,13 @@ class User(db.Model):
 class Order(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     order_id = db.Column(db.Integer, unique=True, nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True, index=True)
     items = db.Column(db.Text, nullable=False)
     total = db.Column(db.Float, nullable=False)
     coins_used = db.Column(db.Integer, default=0)
     currency_paid = db.Column(db.Float, nullable=False)
     date_time = db.Column(db.String(50), nullable=False)
-    status = db.Column(db.String(20), default='Pending')
+    status = db.Column(db.String(20), default='Pending', index=True)
     payment_id = db.Column(db.String(100), nullable=True)
     payment_method = db.Column(db.String(100), nullable=True)
     share_reward_claimed = db.Column(db.Boolean, default=False)
@@ -57,11 +57,11 @@ class Reservation(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(120), nullable=False)
-    date = db.Column(db.String(20), nullable=False)
+    date = db.Column(db.String(20), nullable=False, index=True)
     time = db.Column(db.String(10), nullable=False)
     guests = db.Column(db.String(10), nullable=False)
     notes = db.Column(db.String(200), default='None')
-    table_id = db.Column(db.Integer, db.ForeignKey('table.id'), nullable=True)
+    table_id = db.Column(db.Integer, db.ForeignKey('table.id'), nullable=True, index=True)
     status = db.Column(db.String(20), default='Confirmed')
     # Hard guarantee: one table cannot be booked twice for the same date+time.
     # (table_id NULL = general reservation with no specific table; NULLs don't collide.)
@@ -164,8 +164,8 @@ class Event(db.Model):
 
 class EventRegistration(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    event_id = db.Column(db.Integer, db.ForeignKey('event.id'), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    event_id = db.Column(db.Integer, db.ForeignKey('event.id'), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     created_at = db.Column(db.DateTime, default=_utcnow)
     __table_args__ = (db.UniqueConstraint('event_id', 'user_id', name='uq_event_user'),)
 

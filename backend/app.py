@@ -54,8 +54,14 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # Preserve dict key insertion order in JSON responses (menu category ordering matters).
 app.config['JSON_SORT_KEYS'] = False
 app.json.sort_keys = False
-# Reuse DB connections and drop stale ones (matters for a remote Postgres like Neon).
-app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True, 'pool_recycle': 280}
+# Reuse DB connections and drop stale ones (optimized for Neon serverless Postgres).
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_pre_ping': True,       # verify connections aren't stale before use
+    'pool_recycle': 280,         # recycle connections after 280s (Neon kills idle at 300s)
+    'pool_size': 5,              # keep 5 connections in the pool (1 worker × 16 threads)
+    'max_overflow': 10,          # allow up to 10 additional connections under load
+    'pool_timeout': 10,          # wait max 10s for a connection before erroring
+}
 
 # JWT
 app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET') or os.environ.get('SECRET_KEY', 'dev-secret-change-me')
