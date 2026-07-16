@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Boneyard capture harness — STUDIO 01</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #f4f1ec; color: #2c2420; margin: 0; padding: 24px; }
+    h1 { font-size: 1.3rem; }
+    .hint { color: #6b5e54; font-size: .9rem; max-width: 760px; }
+    .bar { position: sticky; top: 0; background: #f4f1ec; padding: 12px 0; z-index: 5; border-bottom: 1px solid #e8e0d6; }
+    button { font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid #c4704b; background: #c4704b; color: #fff; cursor: pointer; }
+    button.secondary { background: transparent; color: #c4704b; }
+    .component { margin: 28px 0; padding: 16px; background: #fff; border: 1px solid #e8e0d6; border-radius: 12px; }
+    .component h2 { font-size: 1rem; margin: 0 0 12px; display: flex; align-items: center; gap: 12px; }
+    .row { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
+    .bp { border: 1px dashed #cbbfb2; border-radius: 8px; padding: 8px; }
+    .bp h3 { font-size: .75rem; color: #6b5e54; margin: 0 0 6px; text-transform: uppercase; letter-spacing: .05em; }
+    .bp .panes { display: flex; gap: 10px; }
+    iframe { border: 1px solid #e8e0d6; border-radius: 6px; background: #fff; height: 360px; }
+    .preview { width: 220px; }
+    .preview .boneyard-bone { animation: pulse 1.6s ease-in-out infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .55 } }
+    .status { font-size: .8rem; color: #6b5e54; }
+    code { background: #efe9e1; padding: 1px 5px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>Boneyard capture harness</h1>
+  <p class="hint">
+    Renders each real component (from <code>bone-fixtures.mjs</code>) with its page's CSS inside
+    breakpoint-sized iframes, runs the vendored <code>snapshotBones()</code>, and previews the resulting
+    skeleton beside it. Click <b>Download</b> to save a component's <code>.bones.json</code>, then drop it
+    into <code>frontend/js/bones/</code> and commit.
+    <br><b>Serve this file over HTTP</b> (e.g. the site's dev server) — <code>file://</code> blocks the
+    <code>fetch()</code> used to load page CSS.
+  </p>
+  <div class="bar">
+    <button id="captureAll">Capture all</button>
+    <button id="downloadAll" class="secondary">Download all JSON</button>
+    <span class="status" id="globalStatus"></span>
+  </div>
+  <div id="components"></div>
+
+  <script type="module">
+    import { FIXTURES, BREAKPOINTS } from './bone-fixtures.mjs';
+    import { renderBones } from '../js/vendor/boneyard/runtime.js';
+
+    const BONE_COLOR = '#e2d8cc';
+    const captured = {};           // name -> { name, breakpoints: {bp: SkeletonResult} }
+    const styleCache = {};         // page -> css string
+    let extractClassicSrc = null;  // snapshotBones as a classic script
+
+    async function getPageStyles(page) {
+      if (styleCache[page]) return styleCache[page];
+      const html = await (await fetch('../' + page)).text();
+      const blocks = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)].map(m => m[1]);
+      styleCache[page] = blocks.join('\n');
+      return styleCache[page];
+    }
+
+    async function getExtractSrc() {
+      if (extractClassicSrc) return extractClassicSrc;
+      const src = await (await fetch('../js/vendor/boneyard/extract.js')).text();
+      // Convert the ESM module into a classic script that exposes snapshotBones
+      // on the iframe's window, so it runs in the iframe's own realm (correct
+      // getComputedStyle / getBoundingClientRect).
+      extractClassicSrc = src.replace(/^export\s+function/gm, 'function') + '\nwindow.__snap = snapshotBones;';
+      return extractClassicSrc;
+    }
+
+    function raf2(win) {
+      return new Promise(r => win.requestAnimationFrame(() => win.requestAnimationFrame(r)));
+    }
+
+    async function captureOne(fx, wrap) {
+      const css = await getPageStyles(fx.page);
+      const extractSrc = await getExtractSrc();
+      const breakpoints = {};
+      const bpRow = wrap.querySelector('.row');
+      bpRow.innerHTML = '';
+      for (const bp of BREAKPOINTS) {
+        const cell = document.createElement('div');
+        cell.className = 'bp';
+        cell.innerHTML = `<h3>${bp}px</h3><div class="panes"><iframe width="${bp}"></iframe><div class="preview"></div></div>`;
+        bpRow.appendChild(cell);
+        const iframe = cell.querySelector('iframe');
+        iframe.style.width = bp + 'px';
+        const doc = iframe.contentDocument;
+        doc.open();
+        doc.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><style>${css}</style></head><body>${fx.containerOpen}${fx.html}${fx.containerClose}<script>${extractSrc}<\/script></body></html>`);
+        doc.close();
+        await raf2(iframe.contentWindow);
+        const el = doc.querySelector(fx.selector);
+        if (!el) { cell.querySelector('.preview').textContent = 'selector not found'; continue; }
+        const skel = iframe.contentWindow.__snap(el, fx.name);
+        breakpoints[bp] = skel;
+        cell.querySelector('.preview').innerHTML = renderBones(skel, BONE_COLOR, true);
+      }
+      captured[fx.name] = { name: fx.name, breakpoints };
+      wrap.querySelector('.status').textContent = 'captured ✓';
+    }
+
+    function download(name) {
+      const data = captured[name];
+      if (!data) return;
+      const blob = new Blob([JSON.stringify(data, null, 2) + '\n'], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${name}.bones.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    // Build the UI
+    const root = document.getElementById('components');
+    for (const fx of FIXTURES) {
+      const wrap = document.createElement('div');
+      wrap.className = 'component';
+      wrap.innerHTML = `<h2>${fx.name}
+        <button data-cap="${fx.name}">Capture</button>
+        <button class="secondary" data-dl="${fx.name}">Download</button>
+        <span class="status"></span></h2><div class="row"></div>`;
+      root.appendChild(wrap);
+      wrap.querySelector(`[data-cap="${fx.name}"]`).addEventListener('click', () => captureOne(fx, wrap));
+      wrap.querySelector(`[data-dl="${fx.name}"]`).addEventListener('click', () => download(fx.name));
+    }
+
+    document.getElementById('captureAll').addEventListener('click', async () => {
+      const status = document.getElementById('globalStatus');
+      const wraps = [...root.children];
+      for (let i = 0; i < FIXTURES.length; i++) {
+        status.textContent = `capturing ${FIXTURES[i].name}…`;
+        await captureOne(FIXTURES[i], wraps[i]);
+      }
+      status.textContent = 'all captured ✓';
+    });
+    document.getElementById('downloadAll').addEventListener('click', () => {
+      FIXTURES.forEach(fx => download(fx.name));
+    });
+  </script>
+</body>
+</html>

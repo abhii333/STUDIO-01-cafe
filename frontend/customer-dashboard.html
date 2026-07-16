@@ -89,11 +89,7 @@
             <div class="ref-code" id="refCode">------</div>
         </div>
 
-        <div class="stats">
-            <div class="stat coins"><h4>Coins</h4><span id="sCoins">0</span></div>
-            <div class="stat"><h4>Orders</h4><span id="sOrders">0</span></div>
-            <div class="stat"><h4>Spent</h4><span id="sSpent">₹0</span></div>
-        </div>
+        <div class="stats" id="statsGrid"></div>
 
         <h2 style="font-family:var(--font-h);margin:10px 0 20px">Your Badges <span id="streakLabel" style="font-size:.9rem;color:var(--terracotta);font-weight:600"></span></h2>
         <div id="badgesGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:36px"></div>
@@ -102,8 +98,11 @@
         <div id="orders"></div>
     </div>
 
+    <link rel="stylesheet" href="css/skeletons.css">
     <script src="js/config.js"></script>
     <script src="js/api.js"></script>
+    <script src="js/skeleton-boot.js"></script>
+    <script type="module" src="js/skeleton-runtime.mjs"></script>
     <script>
         // Staff accounts have their own dashboard — never the customer loyalty one.
         if (window.API && API.isLoggedIn() && API.isAdmin()) { location.replace('admin-dashboard.html'); }
@@ -123,13 +122,18 @@
         function statusBadgeClass(status){ return 'ostatus badge badge-' + String(status || '').toLowerCase(); }
 
         async function init() {
+            // Paint pixel-matched skeletons while profile + orders load.
+            if (window.Skeletons) {
+                Skeletons.fill('statsGrid', 'stat-card', 3);
+                Skeletons.fill('badgesGrid', 'badge-card', 6);
+                Skeletons.fill('orders', 'order-card', 3);
+            }
             let profile;
             try {
                 const pRes = await API.authFetch('/api/user/profile');
                 profile = await pRes.json();
             } catch (e) { return; } // authFetch already redirected on 401
             document.getElementById('uName').textContent = profile.username;
-            document.getElementById('sCoins').textContent = profile.coins;
             document.getElementById('refCode').textContent = profile.ref_code || '------';
 
             // Streak + badges (Task 11)
@@ -140,13 +144,19 @@
                     <div style="font-family:var(--font-h);font-weight:600;font-size:.85rem;margin-top:6px">${esc(b.name)}</div>
                     <div style="font-size:.7rem;color:var(--text-muted)">${b.earned ? 'Unlocked' : esc(b.description)}</div>
                 </div>`).join('');
+            if (window.Skeletons) Skeletons.clear('badgesGrid');
 
             const orders = await (await API.authFetch('/api/user/orders')).json();
-            document.getElementById('sOrders').textContent = orders.length;
-            document.getElementById('sSpent').textContent = '₹' + orders.reduce((a, b) => a + b.currency_paid, 0);
+            // Render the stat cards now that coins + order totals are known.
+            const _spent = orders.reduce((a, b) => a + b.currency_paid, 0);
+            document.getElementById('statsGrid').innerHTML =
+                `<div class="stat coins"><h4>Coins</h4><span>${esc(profile.coins)}</span></div>`
+                + `<div class="stat"><h4>Orders</h4><span>${orders.length}</span></div>`
+                + `<div class="stat"><h4>Spent</h4><span>₹${_spent}</span></div>`;
+            if (window.Skeletons) Skeletons.clear('statsGrid');
 
             const cont = document.getElementById('orders');
-            if (!orders.length) { cont.innerHTML = '<p style="text-align:center;color:var(--text-muted)">No orders yet.</p>'; return; }
+            if (!orders.length) { cont.innerHTML = '<p style="text-align:center;color:var(--text-muted)">No orders yet.</p>'; if (window.Skeletons) Skeletons.clear('orders'); return; }
 
             cont.innerHTML = orders.map(o => {
                 const itemsHtml = o.items.map(i => `${esc(i.name)} (x${i.quantity})`).join(', ');
@@ -170,6 +180,7 @@
                     </div>
                 </div>`;
             }).join('');
+            if (window.Skeletons) Skeletons.clear('orders');
 
             // Fixed star rating: each star is its own element with a value.
             document.querySelectorAll('.stars-input').forEach(starDiv => {

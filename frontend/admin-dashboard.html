@@ -305,8 +305,11 @@
         </div>
     </div>
 
+    <link rel="stylesheet" href="css/skeletons.css">
     <script src="js/config.js"></script>
     <script src="js/api.js"></script>
+    <script src="js/skeleton-boot.js"></script>
+    <script type="module" src="js/skeleton-runtime.mjs"></script>
     <script>
         if (!API.requireAdmin()) { /* redirected */ }
         function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -377,6 +380,9 @@
         document.addEventListener('visibilitychange', () => { if (document.hidden) stopOrdersPoll(); else startOrdersPoll(); });
 
         async function loadData() {
+            // Skeletonise the orders board on first paint (guard no-ops on refresh/poll,
+            // since the board already holds real order cards by then).
+            if (window.Skeletons) Skeletons.fill('orders-sec', 'admin-order-card', 3);
             let stats, orders, res, so, auditsResp, menu;
             try {
                 [stats, orders, res, so, auditsResp, menu] = await Promise.all([
@@ -387,7 +393,7 @@
                     API.authFetch('/api/admin/audits').then(r => r.json()),
                     API.apiFetch('/api/menu').then(r => r.json())
                 ]);
-            } catch (e) { return; } // authFetch redirects on 401
+            } catch (e) { if (window.Skeletons) Skeletons.clear('orders-sec'); return; } // authFetch redirects on 401
 
             // Dynamic menu names (replaces the old hardcoded array)
             menuItemNames = [];
@@ -447,6 +453,7 @@
                     </div>
                 </div>`;
             }).join('') : '<p style="text-align:center;color:var(--text-muted)">No orders.</p>';
+            if (window.Skeletons) Skeletons.clear('orders-sec');
             noteOrdersSeen(orders, false);  // seed/refresh the high-water mark (no alert on manual refresh)
 
             // Reservations (now includes assigned table + status)
@@ -482,6 +489,7 @@
         // ---- Menu management (Task 8) ----
         let _menuItems = {};
         async function loadMenu() {
+            if (window.Skeletons) Skeletons.fill('menuItemsList', 'admin-order-card', 3);
             const [cats, items] = await Promise.all([
                 API.authFetch('/api/admin/categories').then(r => r.json()),
                 API.authFetch('/api/admin/menu-items').then(r => r.json())
@@ -505,6 +513,7 @@
                     <button class="btn" onclick="editMenuItem(${i.id})">Edit</button>
                     <button class="btn" style="background:#dc3545;margin-left:8px" onclick="deleteMenuItem(${i.id})">Delete</button>
                 </div></div>`).join('') : '<p style="text-align:center;color:var(--text-muted)">No items yet.</p>';
+            if (window.Skeletons) Skeletons.clear('menuItemsList');
         }
         function showPreview(url) { const p = document.getElementById('miPreview'); if (url) { p.src = url; p.style.display = 'block'; } else { p.style.display = 'none'; } }
         function editMenuItem(id) {
@@ -684,6 +693,7 @@
         // ---- Offers (Task 9) ----
         let _offers = {};
         async function loadOffers() {
+            if (window.Skeletons) Skeletons.fill('offersList', 'admin-order-card', 3);
             const [offers, items] = await Promise.all([
                 API.authFetch('/api/admin/offers').then(r => r.json()),
                 API.authFetch('/api/admin/menu-items').then(r => r.json())
@@ -698,6 +708,7 @@
                 <button class="btn" onclick="editOffer(${o.id})">Edit</button>
                 <button class="btn" style="background:#dc3545;margin-left:8px" onclick="deleteOffer(${o.id})">Delete</button>
                 </div></div>`).join('') : '<p style="text-align:center;color:var(--text-muted)">No offers yet.</p>';
+            if (window.Skeletons) Skeletons.clear('offersList');
         }
         function onOfferTypeChange() {
             const t = document.getElementById('ofType').value;
@@ -749,6 +760,7 @@
 
         // ---- Tables (Task 10) ----
         async function loadTables() {
+            if (window.Skeletons) Skeletons.fill('tablesList', 'admin-order-card', 3);
             const tables = await API.authFetch('/api/admin/tables').then(r => r.json());
             document.getElementById('tablesList').innerHTML = tables.length ? tables.map(t => `
                 <div class="order"><div class="order-head"><strong>${esc(t.table_number)} · ${esc(t.location)}</strong><span class="badge ${t.is_available ? 'badge-ready' : 'badge-completed'}">${t.is_available ? 'Available' : 'Disabled'}</span></div>
@@ -756,6 +768,7 @@
                 <button class="btn" onclick="toggleTable(${t.id}, ${!t.is_available})">${t.is_available ? 'Disable' : 'Enable'}</button>
                 <button class="btn" style="background:#dc3545;margin-left:8px" onclick="deleteTable(${t.id})">Delete</button>
                 </div></div>`).join('') : '<p style="text-align:center;color:var(--text-muted)">No tables.</p>';
+            if (window.Skeletons) Skeletons.clear('tablesList');
         }
         async function addTable() {
             const msg = document.getElementById('tbMsg');
@@ -771,6 +784,7 @@
         // ---- Events (Task 14) ----
         let _events = {};
         async function loadEvents() {
+            if (window.Skeletons) Skeletons.fill('eventsList', 'admin-order-card', 3);
             const events = await API.authFetch('/api/admin/events').then(r => r.json());
             _events = {}; events.forEach(e => _events[e.id] = e);
             document.getElementById('eventsList').innerHTML = events.length ? events.map(e => `
@@ -780,6 +794,7 @@
                 <button class="btn" onclick="editEvent(${e.id})">Edit</button>
                 <button class="btn" style="background:#dc3545;margin-left:8px" onclick="deleteEvent(${e.id})">Delete</button>
                 </div></div>`).join('') : '<p style="text-align:center;color:var(--text-muted)">No events.</p>';
+            if (window.Skeletons) Skeletons.clear('eventsList');
         }
         function resetEventForm() { ['evId', 'evTitle', 'evDesc', 'evDate', 'evTime', 'evCapacity', 'evPrice', 'evDuration', 'evImage'].forEach(x => document.getElementById(x).value = ''); document.getElementById('eventFormTitle').textContent = 'Create Event / Workshop'; document.getElementById('evMsg').textContent = ''; }
         function editEvent(id) { const e = _events[id]; if (!e) return; document.getElementById('evId').value = e.id; document.getElementById('evTitle').value = e.title; document.getElementById('evDesc').value = e.description || ''; document.getElementById('evDate').value = e.date; document.getElementById('evTime').value = e.time; document.getElementById('evCapacity').value = e.capacity; document.getElementById('evPrice').value = e.price; document.getElementById('evDuration').value = e.duration_minutes; document.getElementById('evImage').value = e.image_url || ''; document.getElementById('eventFormTitle').textContent = 'Edit Event'; window.scrollTo({ top: 0, behavior: 'smooth' }); }

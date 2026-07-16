@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Boneyard vendor smoke test</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #faf7f2; padding: 40px; }
+    h1 { font-size: 1.2rem; }
+    .stage { max-width: 320px; border: 1px solid #e8e0d6; border-radius: 14px; background: #fff; padding: 0; overflow: hidden; }
+    .boneyard-bone { animation: pulse 1.6s ease-in-out infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .55 } }
+  </style>
+</head>
+<body>
+  <h1>Vendored Boneyard core — renders a hardcoded skeleton</h1>
+  <p>If you see grey bars below, native ESM import + renderBones works.</p>
+  <div class="stage" id="stage"></div>
+
+  <script type="module">
+    import { renderBones } from '../js/vendor/boneyard/runtime.js';
+    // A hardcoded bones object shaped like a menu card.
+    const skel = {
+      name: 'demo', width: 320, height: 300,
+      bones: [
+        { x: 0, y: 0, w: 100, h: 160, r: 0 },     // image
+        { x: 5, y: 176, w: 60, h: 18, r: 6 },     // title
+        { x: 5, y: 202, w: 90, h: 12, r: 6 },     // desc line 1
+        { x: 5, y: 220, w: 80, h: 12, r: 6 },     // desc line 2
+        { x: 5, y: 250, w: 30, h: 20, r: 6 },     // price
+        { x: 82, y: 246, w: 13, h: 28, r: '50%' },// add button
+      ],
+    };
+    document.getElementById('stage').innerHTML = renderBones(skel, '#e6ddd2', false);
+  </script>
+</body>
+</html>

@@ -101,3 +101,42 @@ That's the whole link: the browser loads the site from Netlify, and the JS calls
 - **DB errors on first boot:** confirm `DATABASE_URL` is the Neon **pooled** string and `AUTO_INIT_DB=1`.
 - **Login fails for admin:** the admin is seeded only on first boot with `ADMIN_PASSWORD` set. If you set it later, either reset the Neon DB or create the admin manually.
 - **Selling later:** move `DATABASE_URL` to a paid always-on DB and point Render/`API_BASE_PROD` at a paid host — no code changes needed.
+
+
+---
+
+## Skeleton loading screens (Boneyard)
+
+While data loads, the storefront and dashboards show pixel-matched skeleton
+placeholders extracted from the real rendered DOM (via a vendored subset of
+[`boneyard-js`](https://www.npmjs.com/package/boneyard-js), MIT). No build step
+and no runtime third-party dependency — the core is vendored and imported
+natively.
+
+### Files
+- `frontend/js/vendor/boneyard/` — vendored core (`extract`, `runtime`, `shared`, `responsive`, `types`). See its `VENDORED.md`.
+- `frontend/js/bones/*.bones.json` — captured responsive bones (source of truth), one per component at 375/768/1280.
+- `frontend/js/bones/index.mjs` — generated bundle of all bones (statically imported for instant paint). **Generated — do not edit by hand.**
+- `frontend/js/bones/registry.mjs` — registers the bones by name.
+- `frontend/js/skeleton-boot.js` — tiny classic stub (loads in `<head>`) that queues `Skeletons.fill/clear` until the module is ready.
+- `frontend/js/skeleton-runtime.mjs` — `window.Skeletons.fill(containerId, name, count)` / `.clear(containerId)`.
+- `frontend/css/skeletons.css` — bone colours (CSS vars), pulse animation, `prefers-reduced-motion` + `html.sk-dark` hooks.
+- `frontend/tools/` — dev-only: `capture-bones.html` (re-capture harness), `bone-fixtures.mjs` (fixtures), `build-bones-index.mjs` (bundle generator), `tests/*.test.mjs`.
+
+### Re-capturing bones after a design change
+When you change a card's markup or CSS, re-capture so the skeletons stay pixel-accurate:
+
+1. Serve the frontend over HTTP (e.g. `python3 -m http.server 8199` from `frontend/`).
+   `file://` will not work — the harness uses `fetch()` to load each page's CSS.
+2. Open `http://localhost:8199/tools/capture-bones.html`.
+3. Click **Capture all**, then **Download all JSON** (or per-component **Download**).
+4. Move the downloaded `*.bones.json` files into `frontend/js/bones/`.
+5. Regenerate the bundle: `node frontend/tools/build-bones-index.mjs`.
+6. Verify: `node --test frontend/tools/tests/vendor.test.mjs frontend/tools/tests/bones.test.mjs frontend/tools/tests/runtime.test.mjs`
+
+No manual pixel measurement is ever needed — positions come straight from the
+browser's layout of the real markup.
+
+### Notes
+- `.mjs`/`.js` modules are same-origin, so they load under the existing CSP (`default-src 'self' …`). Netlify and Cloudflare Pages both serve `.mjs` as `text/javascript`.
+- If the runtime module ever fails to load, skeletons simply don't appear — pages still work normally (graceful degradation).

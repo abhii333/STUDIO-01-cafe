@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Skeleton runtime smoke test</title>
+  <link rel="stylesheet" href="../css/skeletons.css">
+  <!-- boot stub first, so queued calls before the module work -->
+  <script src="../js/skeleton-boot.js"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #faf7f2; padding: 24px; }
+    #demoGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; max-width: 1200px; }
+    button { font: inherit; padding: 8px 14px; margin-right: 8px; }
+  </style>
+</head>
+<body>
+  <h1>Runtime smoke test</h1>
+  <div>
+    <button onclick="Skeletons.fill('demoGrid','menu-card',6)">fill 6</button>
+    <button onclick="Skeletons.clear('demoGrid')">clear</button>
+    <span id="ready"></span>
+  </div>
+  <div id="demoGrid"></div>
+
+  <!-- This call happens BEFORE the module loads => must be queued and flushed. -->
+  <script>window.Skeletons.fill('demoGrid', 'menu-card', 6);</script>
+  <script type="module">
+    import '../js/skeleton-runtime.mjs';
+    document.getElementById('ready').textContent = 'runtime ready: ' + (window.Skeletons.__ready === true);
+  </script>
+</body>
+</html>

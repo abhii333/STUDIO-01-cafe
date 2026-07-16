@@ -1,0 +1,69 @@
+/*
+ * Skeleton loading styles for STUDIO 01.
+ *
+ * The vendored renderBones() emits <div class="boneyard"> containers of
+ * absolutely-positioned <div class="boneyard-bone"> blocks. We render with
+ * animate:false so there is a SINGLE source of animation here (no duplicated
+ * inline <style> per card).
+ *
+ * Theme: the app is light-only (cream). Bone colours live in CSS vars so a
+ * future dark theme can override them via `html.sk-dark` without touching JS.
+ */
+:root {
+  --sk-bone: #e4dacd;          /* bone block colour (on a card surface) */
+  --sk-surface: #ffffff;       /* skeleton card background */
+  --sk-surface-border: #ece4d9;
+}
+
+/* Card surface wrapper around each skeleton (leaf bones sit on top). No border
+   so it never adds height vs. the captured card => zero layout shift. */
+.sk-item {
+  position: relative;
+  background: var(--sk-surface);
+  border-radius: 14px;
+  box-shadow: 0 4px 20px rgba(28, 20, 16, 0.03);
+  overflow: hidden;
+}
+
+/* Bone colour is forced with !important so it wins over the inline
+   background-color renderBones sets. We animate OPACITY (not background), so
+   the !important colour and the pulse animation coexist. */
+.boneyard-bone {
+  background-color: var(--sk-bone) !important;
+  animation: sk-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes sk-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.5; }
+}
+
+/* Block-list containers (no grid gap) need spacing between skeleton cards. */
+#orders .sk-item + .sk-item,
+#orders-sec .sk-item + .sk-item,
+#menuItemsList .sk-item + .sk-item,
+#offersList .sk-item + .sk-item,
+#tablesList .sk-item + .sk-item,
+#eventsList .sk-item + .sk-item,
+#photosList .sk-item + .sk-item,
+#res-sec .sk-item + .sk-item,
+#audits-sec .sk-item + .sk-item {
+  margin-top: 16px;
+}
+
+/* Reserve a little height on the always-present grids so the area does not
+   collapse in the brief moment before skeletons paint (reduces CLS). */
+#menuGrid { min-height: 280px; }
+
+/* Accessibility: honour reduced-motion — show static bones, no pulse. */
+@media (prefers-reduced-motion: reduce) {
+  .boneyard-bone { animation: none; }
+}
+
+/* Optional dark theme hook (inert on the current light-only app). If the app
+   ever adds a dark mode, set <html class="sk-dark"> to activate. */
+html.sk-dark {
+  --sk-bone: #2f2a25;
+  --sk-surface: #1f1a16;
+  --sk-surface-border: #2c261f;
+}

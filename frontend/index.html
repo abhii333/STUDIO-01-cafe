@@ -10,6 +10,11 @@
     <!-- Razorpay + html2canvas: lazy-loaded only when needed (checkout/share) -->
     <script src="js/config.js"></script>
     <script src="js/api.js"></script>
+    <!-- Skeleton loading screens (Boneyard). Boot stub is classic + synchronous so
+         page scripts can call Skeletons.fill() immediately; the module flushes the queue. -->
+    <link rel="stylesheet" href="css/skeletons.css">
+    <script src="js/skeleton-boot.js"></script>
+    <script type="module" src="js/skeleton-runtime.mjs"></script>
     <script>if('scrollRestoration' in history)history.scrollRestoration='manual';window.addEventListener('load',function(){if(!location.hash)window.scrollTo(0,0);});</script>
     <style>
         *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
@@ -503,6 +508,8 @@
 
     // Fetch Data Safely
     try {
+        // Paint pixel-matched menu skeletons while the menu loads (renderGrid overwrites them).
+        if (window.Skeletons) Skeletons.fill('menuGrid', 'menu-card', 6);
         const [mRes, rRes, sRes, soRes] = await Promise.all([
             fetch(apiUrl('/api/menu')).catch(()=>({json: ()=>({})})), 
             fetch(apiUrl('/api/reviews')).catch(()=>({json: ()=>({})})), 
@@ -1158,6 +1165,7 @@
     // Initialize
     renderTabs();
     renderGrid();
+    if (window.Skeletons) Skeletons.clear('menuGrid'); // drop aria-busy now that real cards are in
     updateCartUI();
     // Expose openCustomize globally so recommendation cards (rendered in
     // a separate script block) can call it via inline onclick.
@@ -1188,19 +1196,31 @@
 
   (async function () {
     if (!(window.API && API.isLoggedIn())) return; // Don't show recommendations to guests
+    const wrap = document.getElementById('recoWrap');
+    wrap.style.display = 'block';
+    if (window.Skeletons) Skeletons.fill('recoGrid', 'menu-card', 3);
     try {
       const headers = {}; if (window.API && API.getAccess()) headers['Authorization'] = 'Bearer ' + API.getAccess();
       const recs = await fetch(apiUrl('/api/recommendations'), { headers }).then(r => r.json());
       if (Array.isArray(recs) && recs.length) {
         document.getElementById('recoGrid').innerHTML = recs.map(itemCard).join('');
-        document.getElementById('recoWrap').style.display = 'block';
+        if (window.Skeletons) Skeletons.clear('recoGrid'); // drop loading markers; real cards already in
         // Click handling is done via a delegated listener in the main script
         // block (matches on .reco-add), so no per-button binding needed here.
+      } else {
+        if (window.Skeletons) Skeletons.clear('recoGrid');
+        wrap.style.display = 'none'; // nothing to recommend — hide the section
       }
-    } catch (e) {}
+    } catch (e) {
+      if (window.Skeletons) Skeletons.clear('recoGrid');
+      wrap.style.display = 'none';
+    }
   })();
 
   (async function () {
+    const wrap = document.getElementById('dealsWrap');
+    wrap.style.display = 'block';
+    if (window.Skeletons) Skeletons.fill('dealsGrid', 'menu-card', 3);
     try {
       const offers = await fetch(apiUrl('/api/offers')).then(r => r.json());
       if (Array.isArray(offers) && offers.length) {
@@ -1209,12 +1229,21 @@
           const deal = o.offer_type === 'combo' ? ('Combo Rs.' + o.combo_price) : (o.offer_type === 'percent' ? (o.discount_value + '% OFF') : ('Rs.' + o.discount_value + ' OFF'));
           return '<div class="menu-card"><img class="menu-card-img" src="'+esc(img)+'" onerror="this.onerror=null;this.src=\'/static/placeholder.svg\'"><div class="menu-card-body"><div class="menu-card-name">'+esc(o.title)+' <span class="badge badge-discount" style="position:static">'+esc(deal)+'</span></div><div class="menu-card-desc">'+esc(o.description||'')+'</div>'+(o.items&&o.items.length?'<div class="menu-card-desc" style="color:var(--terracotta)">'+o.items.map(esc).join(', ')+'</div>':'')+'</div></div>';
         }).join('');
-        document.getElementById('dealsWrap').style.display = 'block';
+        if (window.Skeletons) Skeletons.clear('dealsGrid');
+      } else {
+        if (window.Skeletons) Skeletons.clear('dealsGrid');
+        wrap.style.display = 'none'; // no active offers — hide the section
       }
-    } catch (e) {}
+    } catch (e) {
+      if (window.Skeletons) Skeletons.clear('dealsGrid');
+      wrap.style.display = 'none';
+    }
   })();
 
   (async function () {
+    const section = document.getElementById('events');
+    section.style.display = 'block';
+    if (window.Skeletons) Skeletons.fill('eventsGrid', 'event-card', 3);
     try {
       const events = await fetch(apiUrl('/api/events')).then(r => r.json());
       if (Array.isArray(events) && events.length) {
@@ -1223,9 +1252,15 @@
           const sold = e.is_sold_out;
           return '<div class="menu-card" style="flex-direction:column"><img class="menu-card-img" style="width:100%;height:150px" src="'+esc(img)+'" onerror="this.onerror=null;this.src=\'/static/placeholder.svg\'"><div class="menu-card-body"><div class="menu-card-name">'+esc(e.title)+'</div><div class="menu-card-desc">'+esc(e.description||'')+'</div><div class="menu-card-desc">'+esc(e.date)+' at '+esc(e.time)+'</div><div class="menu-card-footer"><span class="menu-card-price">'+(e.price>0?('Rs.'+e.price):'Free')+'</span><button class="btn btn-primary" style="padding:8px 16px" '+(sold?'disabled':'')+' onclick="registerEvent('+e.id+')">'+(sold?'Sold Out':'Register')+'</button></div><div style="font-size:.7rem;color:var(--text-muted);margin-top:4px">'+e.registered_count+'/'+e.capacity+' registered</div></div></div>';
         }).join('');
-        document.getElementById('events').style.display = 'block';
+        if (window.Skeletons) Skeletons.clear('eventsGrid');
+      } else {
+        if (window.Skeletons) Skeletons.clear('eventsGrid');
+        section.style.display = 'none'; // no upcoming events — hide the section
       }
-    } catch (e) {}
+    } catch (e) {
+      if (window.Skeletons) Skeletons.clear('eventsGrid');
+      section.style.display = 'none';
+    }
   })();
 
   window.registerEvent = async function (eid) {
