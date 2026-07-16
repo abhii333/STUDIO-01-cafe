@@ -1,6 +1,6 @@
 """Authentication blueprint: register, login, refresh, password reset/change."""
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, create_access_token
@@ -82,9 +82,11 @@ def forgot_password():
     if user:
         token = secrets.token_urlsafe(16)
         user.reset_token = token
-        user.reset_token_expires = datetime.utcnow() + timedelta(hours=1)
+        user.reset_token_expires = datetime.now(timezone.utc) + timedelta(hours=1)
         db.session.commit()
-        print(f"\n[RESET TOKEN FOR {user.username}]: {token}\n")
+        # In production, send this via email. For dev, use proper logging (not print).
+        import logging
+        logging.getLogger(__name__).info("Password reset token issued for user_id=%s", user.id)
     # Generic response either way (do not reveal whether the email exists)
     return jsonify({'success': True,
                     'message': 'If an account exists, a reset token has been issued.'})
@@ -103,7 +105,7 @@ def reset_password():
         return jsonify({'success': False, 'message': 'Invalid or expired token.'}), 400
     # Tokens issued before this feature existed have no expiry set — treat as
     # expired so they must request a fresh one, rather than trusting them forever.
-    if not user.reset_token_expires or datetime.utcnow() > user.reset_token_expires:
+    if not user.reset_token_expires or datetime.now(timezone.utc) > user.reset_token_expires:
         user.reset_token = None
         user.reset_token_expires = None
         db.session.commit()

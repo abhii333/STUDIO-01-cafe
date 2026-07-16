@@ -184,7 +184,11 @@
                     const form = btn.closest('.review-form');
                     const starDiv = form.querySelector('.stars-input');
                     const rating = parseInt(starDiv.dataset.rating) || 0;
-                    if (rating < 1) { alert('Please pick a star rating first.'); return; }
+                    if (rating < 1) {
+                        form.insertAdjacentHTML('beforeend', '<p style="color:#dc3545;font-size:.8rem;margin-top:8px" class="rev-err">Please pick a star rating first.</p>');
+                        setTimeout(function(){ var e = form.querySelector('.rev-err'); if(e) e.remove(); }, 3000);
+                        return;
+                    }
                     const comment = form.querySelector('textarea').value;
                     const oid = starDiv.dataset.oid;
                     const item = starDiv.dataset.item;

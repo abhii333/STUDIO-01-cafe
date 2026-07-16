@@ -5,7 +5,7 @@ import os
 import json
 from collections import Counter
 from urllib.parse import quote
-from datetime import datetime
+from datetime import datetime, timezone
 
 from flask import Blueprint, request, jsonify
 
@@ -136,7 +136,7 @@ def pos_order():
     if wants_online_upi:
         status, payment_id = 'Pending', None
     elif mark_paid:
-        status, payment_id = 'Paid', f"counter-{int(datetime.utcnow().timestamp())}"
+        status, payment_id = 'Paid', f"counter-{int(datetime.now(timezone.utc).timestamp())}"
     else:
         status, payment_id = 'Pending', None
 
@@ -233,7 +233,7 @@ def admin_mark_paid():
     o = Order.query.filter_by(order_id=oid).first()
     if not o:
         return jsonify({'success': False, 'error': 'order not found'}), 404
-    o.payment_id = data.get('payment_id') or f"offline-{int(datetime.utcnow().timestamp())}"
+    o.payment_id = data.get('payment_id') or f"offline-{int(datetime.now(timezone.utc).timestamp())}"
     o.status = 'Paid'
     db.session.commit()
 

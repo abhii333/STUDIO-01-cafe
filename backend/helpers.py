@@ -176,19 +176,26 @@ def update_streak(user):
 
 
 def _user_stats(user):
-    orders = Order.query.filter_by(user_id=user.id).all()
+    """Compute badge-relevant stats using efficient queries (no N+1)."""
+    from sqlalchemy import func
+    order_count = Order.query.filter_by(user_id=user.id).count()
+    total_spend = db.session.query(func.coalesce(func.sum(Order.currency_paid), 0)).filter(
+        Order.user_id == user.id).scalar()
+    review_count = Review.query.filter_by(user_id=user.id).count()
+    # Early bird: check if any order was before 9 AM (parse stored date_time strings).
     early = False
-    for o in orders:
+    early_orders = Order.query.filter_by(user_id=user.id).with_entities(Order.date_time).all()
+    for (dt_str,) in early_orders:
         try:
-            if datetime.strptime(o.date_time, "%d-%m-%Y %I:%M %p").hour < 9:
+            if datetime.strptime(dt_str, "%d-%m-%Y %I:%M %p").hour < 9:
                 early = True
                 break
         except Exception:
             pass
     return {
-        'order_count': len(orders),
-        'total_spend': sum(o.currency_paid for o in orders),
-        'review_count': Review.query.filter_by(user_id=user.id).count(),
+        'order_count': order_count,
+        'total_spend': float(total_spend),
+        'review_count': review_count,
         'streak': user.current_streak or 0,
         'early_bird': early,
     }
@@ -263,15 +270,17 @@ def _event_dict(e):
 
 
 def _offer_dict(o):
+    # Batch-load item names instead of individual query per OfferItem (fixes N+1).
+    item_ids = [oi.menu_item_id for oi in o.items]
     names = []
-    for oi in o.items:
-        mi = MenuItem.query.get(oi.menu_item_id)
-        if mi:
-            names.append(mi.name)
+    if item_ids:
+        items = MenuItem.query.filter(MenuItem.id.in_(item_ids)).all()
+        name_map = {mi.id: mi.name for mi in items}
+        names = [name_map[mid] for mid in item_ids if mid in name_map]
     return {'id': o.id, 'title': o.title, 'description': o.description, 'offer_type': o.offer_type,
             'discount_value': o.discount_value, 'combo_price': o.combo_price, 'image_url': o.image_url,
             'is_active': o.is_active, 'valid_from': o.valid_from, 'valid_until': o.valid_until,
-            'item_ids': [oi.menu_item_id for oi in o.items], 'items': names}
+            'item_ids': item_ids, 'items': names}
 
 
 def _offer_is_current(o):

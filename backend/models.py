@@ -3,9 +3,14 @@
 The single ``db`` instance lives here and is initialised against the app in
 ``app.py`` via ``db.init_app(app)``. Every model imports from this module.
 """
-from datetime import datetime
+from datetime import datetime, timezone
 
 from flask_sqlalchemy import SQLAlchemy
+
+
+def _utcnow():
+    """Timezone-aware UTC timestamp (replaces deprecated datetime.utcnow)."""
+    return datetime.now(timezone.utc)
 
 db = SQLAlchemy()
 
@@ -89,7 +94,7 @@ class OrderAudit(db.Model):
     order_id = db.Column(db.Integer, nullable=False)
     admin_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     action = db.Column(db.String(100), nullable=False)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    timestamp = db.Column(db.DateTime, default=_utcnow)
     meta = db.Column(db.Text, nullable=True)
 
 
@@ -131,7 +136,7 @@ class UserBadge(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     badge_id = db.Column(db.Integer, db.ForeignKey('badge.id'), nullable=False)
-    earned_at = db.Column(db.DateTime, default=datetime.utcnow)
+    earned_at = db.Column(db.DateTime, default=_utcnow)
     __table_args__ = (db.UniqueConstraint('user_id', 'badge_id', name='uq_user_badge'),)
 
 
@@ -140,7 +145,7 @@ class Photo(db.Model):
     image_url = db.Column(db.String(500), nullable=False)
     caption = db.Column(db.String(200), default='')
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
 
 
 class Event(db.Model):
@@ -161,7 +166,7 @@ class EventRegistration(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     event_id = db.Column(db.Integer, db.ForeignKey('event.id'), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
     __table_args__ = (db.UniqueConstraint('event_id', 'user_id', name='uq_event_user'),)
 
 
@@ -193,7 +198,7 @@ class GroupOrder(db.Model):
     title = db.Column(db.String(120), default='Group Order')
     status = db.Column(db.String(20), default='open')  # open | locked | placed | cancelled
     order_id = db.Column(db.Integer, nullable=True)    # set once finalized into an Order
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
     contributions = db.relationship('GroupOrderContribution', backref='group', lazy=True,
                                     cascade='all, delete-orphan')
 
@@ -206,6 +211,6 @@ class GroupOrderContribution(db.Model):
     participant_name = db.Column(db.String(80), nullable=False)
     items = db.Column(db.Text, nullable=False, default='[]')  # JSON list of {name, price, quantity}
     subtotal = db.Column(db.Float, default=0)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     __table_args__ = (db.UniqueConstraint('group_id', 'user_id', name='uq_group_user'),)
