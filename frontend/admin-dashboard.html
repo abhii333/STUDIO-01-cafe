@@ -33,6 +33,7 @@
         .badge-ready{background:rgba(40,167,69,.1);color:#28a745}
         .badge-completed{background:rgba(108,117,125,.1);color:#6c757d}
         .badge-paid{background:rgba(40,167,69,.1);color:#28a745}
+        .badge-cancelled{background:rgba(220,53,69,.12);color:#dc3545}
         .btn{background:var(--espresso);color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:.75rem;font-weight:600;cursor:pointer;margin-top:12px;font-family:inherit}
         select,input{padding:10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;width:100%;margin-bottom:12px;box-sizing:border-box}
         .toggle-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-height:280px;overflow:auto}
@@ -271,6 +272,26 @@
         </div>
     </div>
 
+    <!-- Add Items Modal -->
+    <div id="addItemsModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);align-items:center;justify-content:center;z-index:220;padding:16px">
+        <div style="background:#fff;padding:20px;border-radius:14px;max-width:720px;width:100%;max-height:90vh;overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+            <h3 style="font-family:var(--font-h);margin-bottom:4px">Add Items to Order <span id="addItemsOrderId"></span></h3>
+            <p style="color:var(--text-muted);font-size:.82rem;margin-bottom:14px">Tap items to add. The order total updates automatically.</p>
+            <div class="pos-cats" id="addItemsCats"></div>
+            <div class="pos-items" id="addItemsItems" style="max-height:280px;overflow:auto"><p style="color:var(--text-muted)">Loading menu…</p></div>
+            <div id="addItemsTicket" style="margin:14px 0"><p style="color:var(--text-muted);font-size:.85rem">Tap items to add them.</p></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin:12px 0;padding-top:12px;border-top:2px solid var(--border)">
+                <strong style="font-family:var(--font-h)">Adding</strong>
+                <strong style="font-family:var(--font-h)" id="addItemsTotal">₹0</strong>
+            </div>
+            <div id="addItemsMsg" style="font-size:.8rem;color:var(--text-muted);margin-bottom:8px"></div>
+            <div style="display:flex;gap:8px;justify-content:flex-end">
+                <button class="btn" style="background:#ccc;color:#222" onclick="closeAddItems()">Cancel</button>
+                <button class="btn" onclick="confirmAddItems()">Add to Order</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Mark Paid Modal -->
     <div id="markPaidModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);align-items:center;justify-content:center;z-index:200">
         <div style="background:#fff;padding:20px;border-radius:12px;max-width:420px;width:92%;box-shadow:0 10px 40px rgba(0,0,0,.2)">
@@ -292,6 +313,68 @@
 
         let menuItemNames = [];
         let revenueChart = null;
+
+        // ---- New-order alert (beep + title flash) on poll ----
+        let _maxSeenOrderId = 0;
+        let _ordersInit = false;   // becomes true after the first orders load
+        let _ordersPollTimer = null;
+        let _audioCtx = null;
+        function beepNewOrder() {
+            try {
+                _audioCtx = _audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+                if (_audioCtx.state === 'suspended') _audioCtx.resume();
+                const now = _audioCtx.currentTime;
+                [880, 1174].forEach((freq, i) => {
+                    const osc = _audioCtx.createOscillator();
+                    const gain = _audioCtx.createGain();
+                    osc.connect(gain); gain.connect(_audioCtx.destination);
+                    osc.type = 'sine'; osc.frequency.value = freq;
+                    const t = now + i * 0.18;
+                    gain.gain.setValueAtTime(0.0001, t);
+                    gain.gain.exponentialRampToValueAtTime(0.35, t + 0.02);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+                    osc.start(t); osc.stop(t + 0.18);
+                });
+            } catch (e) { /* audio not available — ignore */ }
+        }
+        let _titleFlashTimer = null;
+        function flashTitle() {
+            const original = 'Admin — STUDIO 01';
+            let on = false, count = 0;
+            clearInterval(_titleFlashTimer);
+            _titleFlashTimer = setInterval(() => {
+                document.title = (on = !on) ? '🔔 New order!' : original;
+                if (++count > 10) { clearInterval(_titleFlashTimer); document.title = original; }
+            }, 700);
+        }
+        function noteOrdersSeen(orders, allowAlert) {
+            const maxId = (orders || []).reduce((m, o) => Math.max(m, o.order_id || 0), 0);
+            if (allowAlert && _ordersInit && maxId > _maxSeenOrderId) {
+                beepNewOrder();
+                flashTitle();
+            }
+            _maxSeenOrderId = Math.max(_maxSeenOrderId, maxId);
+            _ordersInit = true;
+        }
+        async function pollNewOrders() {
+            try {
+                const res = await API.authFetch('/api/admin/orders');
+                if (!res || !res.ok) return;
+                const orders = await res.json();
+                const maxId = (orders || []).reduce((m, o) => Math.max(m, o.order_id || 0), 0);
+                if (maxId > _maxSeenOrderId) {
+                    // A new order arrived — alert and do a full refresh.
+                    noteOrdersSeen(orders, true);
+                    loadData();
+                }
+            } catch (e) { /* silent — retry next tick */ }
+        }
+        function startOrdersPoll() {
+            stopOrdersPoll();
+            _ordersPollTimer = setInterval(pollNewOrders, 15000);
+        }
+        function stopOrdersPoll() { if (_ordersPollTimer) { clearInterval(_ordersPollTimer); _ordersPollTimer = null; } }
+        document.addEventListener('visibilitychange', () => { if (document.hidden) stopOrdersPoll(); else startOrdersPoll(); });
 
         async function loadData() {
             let stats, orders, res, so, auditsResp, menu;
@@ -327,13 +410,22 @@
             const oSec = document.getElementById('orders-sec');
             oSec.innerHTML = orders.length ? orders.map(o => {
                 const items = o.items.map(i => esc(i.name)).join(', ');
+                const isCancelled = o.status === 'Cancelled';
                 let btn = '';
                 if (o.status === 'Pending') btn = `<button class="btn" onclick="updStatus(${o.order_id}, 'Preparing')">Start Preparing</button> <button class="btn" style="background:#2c9f4a;margin-left:8px" onclick="markPaid(${o.order_id})">Mark Paid</button>`;
                 if (o.status === 'Preparing') btn = `<button class="btn" onclick="updStatus(${o.order_id}, 'Ready')">Mark Ready</button>`;
                 if (o.status === 'Ready') btn = `<button class="btn" onclick="updStatus(${o.order_id}, 'Completed')">Complete</button>`;
+                // Cancel + Add Items available until an order is Completed or Cancelled.
+                let extraBtns = '';
+                if (o.status !== 'Completed' && !isCancelled) {
+                    extraBtns = `<button class="btn" style="background:#6c5ce7;margin-left:8px" onclick="openAddItems(${o.order_id})">Add Items</button>`
+                        + `<button class="btn" style="background:#dc3545;margin-left:8px" onclick="cancelOrder(${o.order_id})">Cancel</button>`;
+                }
                 const statuses = ['Pending', 'Preparing', 'Ready', 'Completed'];
                 const currIdx = statuses.indexOf(o.status);
-                const trackerHtml = statuses.map((s, i) => `
+                const trackerHtml = isCancelled
+                    ? `<div style="flex:1;text-align:center;color:#dc3545;font-weight:700;padding:6px 0">&#10007; Order Cancelled</div>`
+                    : statuses.map((s, i) => `
                     <div style="display:flex;flex-direction:column;align-items:center;flex:1;position:relative;z-index:1">
                         <div style="width:28px;height:28px;border-radius:50%;background:${i < currIdx ? '#28a745' : i === currIdx ? 'var(--terracotta)' : 'var(--border)'};color:${i <= currIdx ? '#fff' : 'var(--text-muted)'};display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;margin-bottom:6px">${i < currIdx ? '&#10003;' : i + 1}</div>
                         <span style="font-size:.65rem;color:${i <= currIdx ? 'var(--espresso)' : 'var(--text-muted)'};text-transform:uppercase;font-weight:600">${s}</span>
@@ -351,10 +443,11 @@
                         </div>
                         <p><strong>Items:</strong> ${items}</p>
                         <p style="margin-top:8px"><strong>Total:</strong> ₹${o.currency_paid}</p>
-                        ${paymentLabel}${btn}
+                        ${paymentLabel}${btn}${extraBtns}
                     </div>
                 </div>`;
             }).join('') : '<p style="text-align:center;color:var(--text-muted)">No orders.</p>';
+            noteOrdersSeen(orders, false);  // seed/refresh the high-water mark (no alert on manual refresh)
 
             // Reservations (now includes assigned table + status)
             document.getElementById('res-sec').innerHTML = res.length ? res.map(r =>
@@ -474,6 +567,94 @@
         async function updStatus(id, status) {
             await API.authFetch('/api/admin/update-order-status', { method: 'POST', json: { order_id: id, status } });
             loadData();
+        }
+
+        // ---- Cancel an order (refunds coins server-side) ----
+        async function cancelOrder(id) {
+            if (!confirm('Cancel order #' + id + '? Any coins the customer used are refunded.')) return;
+            try {
+                const res = await API.authFetch('/api/admin/orders/' + id + '/cancel', { method: 'POST' });
+                const d = await res.json().catch(() => ({}));
+                if (res.ok && d.success) { loadData(); }
+                else { alert(d.message || 'Could not cancel this order.'); }
+            } catch (e) { alert('Network error while cancelling.'); }
+        }
+
+        // ---- Add items to an existing order (customer wants more) ----
+        let _addOrderId = null;
+        let _addMenu = {};      // category -> {name: {price, sold_out}}
+        let _addCat = 'All';
+        let _addTicket = {};    // name -> {name, price, qty}
+        async function openAddItems(oid) {
+            _addOrderId = oid;
+            _addTicket = {};
+            _addCat = 'All';
+            document.getElementById('addItemsOrderId').textContent = '#' + oid;
+            document.getElementById('addItemsMsg').textContent = '';
+            document.getElementById('addItemsModal').style.display = 'flex';
+            try {
+                const data = await API.apiFetch('/api/menu').then(r => r.json());
+                _addMenu = data.menu || {};
+            } catch (e) { _addMenu = {}; }
+            renderAddCats();
+            renderAddItems();
+            renderAddTicket();
+        }
+        function closeAddItems() { document.getElementById('addItemsModal').style.display = 'none'; _addOrderId = null; }
+        function renderAddCats() {
+            const cats = ['All', ...Object.keys(_addMenu)];
+            document.getElementById('addItemsCats').innerHTML = cats.map(c =>
+                `<button class="pos-cat ${c === _addCat ? 'active' : ''}" data-cat="${esc(c)}">${esc(c)}</button>`).join('');
+            document.querySelectorAll('#addItemsCats .pos-cat').forEach(b => b.onclick = () => { _addCat = b.dataset.cat; renderAddCats(); renderAddItems(); });
+        }
+        function renderAddItems() {
+            const rows = [];
+            Object.entries(_addMenu).forEach(([cat, items]) => {
+                if (_addCat !== 'All' && _addCat !== cat) return;
+                Object.entries(items).forEach(([name, info]) => {
+                    rows.push(`<div class="pos-item ${info.sold_out ? 'out' : ''}" data-name="${esc(name)}" data-price="${info.price}">
+                        <div class="n">${esc(name)}</div><div class="p">₹${info.price}${info.sold_out ? ' · SOLD OUT' : ''}</div></div>`);
+                });
+            });
+            const wrap = document.getElementById('addItemsItems');
+            wrap.innerHTML = rows.length ? rows.join('') : '<p style="color:var(--text-muted)">No items.</p>';
+            wrap.querySelectorAll('.pos-item').forEach(el => el.onclick = () => {
+                const name = el.dataset.name, price = parseFloat(el.dataset.price);
+                if (_addTicket[name]) _addTicket[name].qty += 1; else _addTicket[name] = { name, price, qty: 1 };
+                renderAddTicket();
+            });
+        }
+        function addTicketQty(name, delta) {
+            if (!_addTicket[name]) return;
+            _addTicket[name].qty += delta;
+            if (_addTicket[name].qty <= 0) delete _addTicket[name];
+            renderAddTicket();
+        }
+        function renderAddTicket() {
+            const lines = Object.values(_addTicket);
+            const el = document.getElementById('addItemsTicket');
+            if (!lines.length) { el.innerHTML = '<p style="color:var(--text-muted);font-size:.85rem">Tap items to add them.</p>'; }
+            else {
+                el.innerHTML = lines.map(l => `<div class="ticket-line">
+                    <span class="tn">${esc(l.name)}<br><small style="color:var(--text-muted)">₹${l.price}</small></span>
+                    <span class="qty"><button data-dec="${esc(l.name)}">−</button><strong>${l.qty}</strong><button data-inc="${esc(l.name)}">+</button></span>
+                    <strong style="width:64px;text-align:right">₹${l.price * l.qty}</strong></div>`).join('');
+                el.querySelectorAll('[data-inc]').forEach(b => b.onclick = () => addTicketQty(b.dataset.inc, 1));
+                el.querySelectorAll('[data-dec]').forEach(b => b.onclick = () => addTicketQty(b.dataset.dec, -1));
+            }
+            const total = lines.reduce((a, l) => a + l.price * l.qty, 0);
+            document.getElementById('addItemsTotal').textContent = '₹' + total;
+        }
+        async function confirmAddItems() {
+            const msg = document.getElementById('addItemsMsg');
+            const items = Object.values(_addTicket).map(l => ({ name: l.name, quantity: l.qty }));
+            if (!items.length) { msg.style.color = '#dc3545'; msg.textContent = 'Add at least one item.'; return; }
+            try {
+                const res = await API.authFetch('/api/admin/orders/' + _addOrderId + '/add-items', { method: 'POST', json: { items } });
+                const d = await res.json().catch(() => ({}));
+                if (res.ok && d.success) { closeAddItems(); loadData(); }
+                else { msg.style.color = '#dc3545'; msg.textContent = d.message || 'Could not add items.'; }
+            } catch (e) { msg.style.color = '#dc3545'; msg.textContent = 'Network error.'; }
         }
         async function setSpecial() {
             const item = document.getElementById('specItem').value;
@@ -917,6 +1098,7 @@
 
         document.getElementById('logoutBtn').addEventListener('click', () => API.logout());
         loadData();
+        startOrdersPoll();  // beep + alert when a new order arrives
     </script>
 </body>
 </html>

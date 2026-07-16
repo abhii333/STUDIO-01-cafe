@@ -180,7 +180,14 @@ def api_events():
     cached = api_cache.get('events')
     if cached:
         return cached
-    events = Event.query.filter_by(is_active=True).order_by(Event.date).all()
+    # Only surface upcoming events publicly (dates are stored as ISO 'YYYY-MM-DD',
+    # so a lexical >= comparison is also chronological). Admins still see all
+    # events via /api/admin/events. The short TTL keeps day-rollover staleness
+    # to a few minutes, and admin mutations invalidate the 'events' key.
+    today = datetime.now().date().isoformat()
+    events = (Event.query
+              .filter(Event.is_active == True, Event.date >= today)  # noqa: E712
+              .order_by(Event.date).all())
     resp = jsonify([_event_dict(e) for e in events])
     api_cache.set('events', resp, ttl=CACHE_TTL_EVENTS)
     return resp

@@ -4,6 +4,7 @@ These are idempotent: each ``seed_*`` returns early if its table already has
 rows, so calling them on every boot is safe.
 """
 import os
+from datetime import date, timedelta
 
 from sqlalchemy import inspect as sa_inspect, text
 
@@ -244,13 +245,17 @@ def seed_badges():
 def seed_events():
     if Event.query.first() is not None:
         return
+    # Dates are relative to "today" so freshly-seeded databases always show
+    # upcoming events (never stale past dates). The public /api/events endpoint
+    # additionally hides any event whose date has already passed.
+    today = date.today()
     events = [
         ('Coffee Brewing Workshop', 'Master pour-over, French press, and cold brew with our head barista.',
-         '2026-01-15', '11:00', 90, 12, 799, 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=600&fit=crop'),
+         (today + timedelta(days=14)).isoformat(), '11:00', 90, 12, 799, 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=600&fit=crop'),
         ('Latte Art Masterclass', 'Learn to pour hearts, rosettas, and tulips like a pro.',
-         '2026-01-22', '16:00', 60, 10, 599, 'https://images.unsplash.com/photo-1541167760496-1628856ab772?w=600&fit=crop'),
+         (today + timedelta(days=21)).isoformat(), '16:00', 60, 10, 599, 'https://images.unsplash.com/photo-1541167760496-1628856ab772?w=600&fit=crop'),
         ('Vegan Baking Day', 'Hands-on session baking plant-based pastries and desserts.',
-         '2026-02-05', '10:00', 120, 8, 999, 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=600&fit=crop'),
+         (today + timedelta(days=35)).isoformat(), '10:00', 120, 8, 999, 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=600&fit=crop'),
     ]
     db.session.add_all([
         Event(title=title, description=desc, date=date, time=time, duration_minutes=dur,

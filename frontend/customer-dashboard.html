@@ -46,6 +46,7 @@
         .badge-preparing{background:rgba(0,123,255,.12);color:#007bff}
         .badge-ready{background:rgba(196,112,75,.15);color:var(--terracotta)}
         .badge-completed{background:rgba(40,167,69,.15);color:#28a745}
+        .badge-cancelled{background:rgba(220,53,69,.15);color:#dc3545}
         .live-indicator{display:inline-flex;align-items:center;gap:6px;font-size:.72rem;color:var(--text-muted);margin-left:10px}
         .live-dot{width:8px;height:8px;border-radius:50%;background:#28a745;animation:pulse 1.6s infinite}
         @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(40,167,69,.5)}70%{box-shadow:0 0 0 7px rgba(40,167,69,0)}100%{box-shadow:0 0 0 0 rgba(40,167,69,0)}}
@@ -112,6 +113,7 @@
 
         const STATUSES = ['Pending', 'Preparing', 'Ready', 'Completed'];
         function trackerHtml(status) {
+            if (status === 'Cancelled') return '<p style="width:100%;text-align:center;color:#dc3545;font-weight:600">&#10007; This order was cancelled.</p>';
             const currIdx = STATUSES.indexOf(status);
             return STATUSES.map((s, i) => `
                     <div class="step ${i < currIdx ? 'done' : ''} ${i === currIdx ? 'active' : ''}">
@@ -164,6 +166,7 @@
                             <button class="btn submit-review">Submit Review</button>
                         </div>
                         <button class="btn review-toggle" style="margin-top:15px;font-size:.8rem;display:${showReview ? 'inline-flex' : 'none'}" onclick="document.getElementById('rev-${o.order_id}').style.display='block'; this.style.display='none'">Write a Review</button>
+                        ${o.status === 'Pending' ? `<button class="btn cancel-order" style="margin-top:15px;margin-left:8px;font-size:.8rem;background:#dc3545" onclick="cancelMyOrder(${o.order_id})">Cancel Order</button>` : ''}
                     </div>
                 </div>`;
             }).join('');
@@ -260,6 +263,33 @@
                 const toggle = card.querySelector('.review-toggle');
                 const form = card.querySelector('.review-form');
                 if (toggle && (!form || form.style.display !== 'block')) toggle.style.display = 'inline-flex';
+            }
+            if (status !== 'Pending') {
+                // Once an order leaves Pending it can no longer be cancelled by the customer.
+                const cbtn = card.querySelector('.cancel-order');
+                if (cbtn) cbtn.remove();
+            }
+        }
+
+        // ---- Customer cancels their own still-pending order ----
+        async function cancelMyOrder(oid) {
+            if (!confirm('Cancel order #' + oid + '? Any coins you used will be refunded.')) return;
+            const card = document.querySelector('.order[data-oid="' + oid + '"]');
+            const btn = card ? card.querySelector('.cancel-order') : null;
+            if (btn) { btn.disabled = true; btn.textContent = 'Cancelling…'; }
+            try {
+                const res = await API.authFetch('/api/user/orders/' + oid + '/cancel', { method: 'POST' });
+                const d = await res.json().catch(() => ({}));
+                if (res.ok && d.success) {
+                    _lastStatuses[String(oid)] = 'Cancelled';
+                    applyStatus(oid, 'Cancelled');
+                } else {
+                    if (btn) { btn.disabled = false; btn.textContent = 'Cancel Order'; }
+                    alert(d.message || 'Could not cancel this order.');
+                }
+            } catch (e) {
+                if (btn) { btn.disabled = false; btn.textContent = 'Cancel Order'; }
+                alert('Network error while cancelling.');
             }
         }
 

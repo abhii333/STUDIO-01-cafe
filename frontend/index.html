@@ -188,6 +188,21 @@
         <button class="hamburger" id="hamburger" aria-label="Open menu" aria-expanded="false" aria-controls="nav-links"><span class="hamburger-line"></span><span class="hamburger-line"></span><span class="hamburger-line"></span></button>
     </div>
 </nav>
+<script>
+    // Prevent a "Login" flash for already-signed-in staff: decide the nav
+    // synchronously from the stored session (localStorage) before first paint.
+    // The main async flow re-confirms this once the profile request returns.
+    try {
+        if (window.API && API.isLoggedIn() && API.isAdmin()) {
+            var _na = document.getElementById('navActions');
+            if (_na) {
+                _na.innerHTML = '<a href="admin-dashboard.html" class="nav-btn nav-coin"><iconify-icon icon="lucide:layout-dashboard" width="14"></iconify-icon> Dashboard</a> <a href="#" class="nav-btn" id="logoutBtn">Logout</a>';
+                var _lb = document.getElementById('logoutBtn');
+                if (_lb) _lb.addEventListener('click', function (e) { e.preventDefault(); API.logout(); });
+            }
+        }
+    } catch (e) { /* fall back to the default Login button */ }
+</script>
 
 <section class="hero" id="hero">
     <div class="hero-bg">
@@ -427,6 +442,7 @@
     function loadHtml2Canvas() { return loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'); }
 
     let menuData = {}, customData = {}, reviews = {}, soldOut = [], cart = {};
+    let menuOk = false;   // true only when /api/menu responded successfully
     let special = null;
     let userCoins = 0;
     let isLoggedIn = false;
@@ -494,6 +510,7 @@
             fetch(apiUrl('/api/soldout')).catch(()=>({json: ()=>([])}))
         ]);
         
+        menuOk = !!(mRes && mRes.ok);  // a real Response has .ok; the network-failure stub does not
         const m = await mRes.json(); 
         // Bulletproof check: works if API returns {menu:...} or just the menu object directly
         menuData = m.menu || m; 
@@ -625,7 +642,11 @@
 
     function renderGrid() {
         if(!menuData || Object.keys(menuData).length === 0) {
-            gridEl.innerHTML = '<p style="text-align:center;color:var(--text-muted);grid-column:1/-1;padding:40px 0">Could not load menu.</p>';
+            // Distinguish a genuinely empty menu (admin removed all dishes) from a
+            // failure to reach the API, so the message is never misleading.
+            gridEl.innerHTML = menuOk
+                ? '<div style="text-align:center;color:var(--text-muted);grid-column:1/-1;padding:48px 20px"><iconify-icon icon="lucide:coffee" width="40" style="color:var(--terracotta)"></iconify-icon><p style="margin-top:12px;font-weight:600">Our menu is being updated</p><p style="font-size:.9rem">Fresh dishes are on the way — please check back soon.</p></div>'
+                : '<div style="text-align:center;color:var(--text-muted);grid-column:1/-1;padding:48px 20px"><iconify-icon icon="lucide:wifi-off" width="40"></iconify-icon><p style="margin-top:12px;font-weight:600">Couldn\'t load the menu</p><p style="font-size:.9rem">Please check your connection and refresh the page.</p></div>';
             return;
         }
 
