@@ -6,15 +6,14 @@
     <title>STUDIO 01 — Craft Coffee & Creative Space</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
-    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
-    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script defer src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+    <!-- Razorpay + html2canvas: lazy-loaded only when needed (checkout/share) -->
     <script src="js/config.js"></script>
     <script src="js/api.js"></script>
     <script>if('scrollRestoration' in history)history.scrollRestoration='manual';window.addEventListener('load',function(){if(!location.hash)window.scrollTo(0,0);});</script>
     <style>
         *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-        :root{--espresso:#1C1410;--cream:#FAF7F2;--terracotta:#C4704B;--border:#E8E0D6;--text-dark:#2C2420;--text-muted:#8B7D72;--card:#FFFFFF;--font-heading:'Syne',sans-serif;--font-body:'Inter',sans-serif;--radius-md:14px;--radius-sm:8px;--radius-full:9999px;--shadow-md:0 4px 20px rgba(28,20,16,.08);--transition:.3s ease}
+        :root{--espresso:#1C1410;--cream:#FAF7F2;--terracotta:#C4704B;--border:#E8E0D6;--text-dark:#2C2420;--text-muted:#6B5E54;--card:#FFFFFF;--font-heading:'Syne',sans-serif;--font-body:'Inter',sans-serif;--radius-md:14px;--radius-sm:8px;--radius-full:9999px;--shadow-md:0 4px 20px rgba(28,20,16,.08);--transition:.3s ease}
         body{font-family:var(--font-body);background:var(--cream);color:var(--text-dark);line-height:1.6;overflow-x:hidden}
         a{text-decoration:none;color:inherit}button{cursor:pointer;border:none;background:none;font-family:inherit}
         .container{max-width:1280px;margin:0 auto;padding:0 24px}
@@ -127,8 +126,11 @@
         .cart-item-name{font-family:var(--font-heading);font-size:.875rem;font-weight:600;color:var(--espresso)}
         .cart-item-price{font-size:.8125rem;color:var(--terracotta);font-weight:600}
         .qty-ctrl{display:flex;align-items:center;gap:10px}
-        .qty-btn{width:28px;height:28px;border-radius:50%;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:.875rem;color:var(--text-muted);transition:all var(--transition)}
+        .qty-btn{width:44px;height:44px;border-radius:50%;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:1rem;color:var(--text-muted);transition:all var(--transition)}
         .qty-btn:hover{border-color:var(--terracotta);color:var(--terracotta)}
+        /* Focus-visible for keyboard navigation */
+        :focus-visible{outline:2px solid var(--terracotta);outline-offset:2px;border-radius:4px}
+        button:focus-visible,.btn:focus-visible,.nav-btn:focus-visible,.menu-card-add:focus-visible{outline:2px solid var(--terracotta);outline-offset:2px}
         .total-row{display:flex;justify-content:space-between;font-size:1.5rem;font-family:var(--font-heading);font-weight:800;margin-bottom:20px}
 
         /* TOAST */
@@ -168,7 +170,10 @@
 </head>
 <body>
 
-<nav class="navbar" id="navbar">
+<!-- Skip navigation link for keyboard/screen-reader users -->
+<a href="#menu" class="skip-nav" style="position:absolute;top:-100%;left:50%;transform:translateX(-50%);padding:12px 24px;background:var(--terracotta);color:#fff;border-radius:0 0 8px 8px;font-weight:600;z-index:9999;transition:top .2s" onfocus="this.style.top='0'" onblur="this.style.top='-100%'">Skip to Menu</a>
+
+<nav class="navbar" id="navbar" role="navigation" aria-label="Main navigation">
     <div class="nav-inner">
         <a href="#" class="nav-logo">STUDIO 01</a>
         <ul class="nav-links">
@@ -180,7 +185,7 @@
         <div class="nav-actions" id="navActions">
             <a href="login.html" class="nav-btn" id="loginBtn">Login</a>
         </div>
-        <button class="hamburger" id="hamburger"><span class="hamburger-line"></span><span class="hamburger-line"></span><span class="hamburger-line"></span></button>
+        <button class="hamburger" id="hamburger" aria-label="Open menu" aria-expanded="false" aria-controls="nav-links"><span class="hamburger-line"></span><span class="hamburger-line"></span><span class="hamburger-line"></span></button>
     </div>
 </nav>
 
@@ -401,6 +406,18 @@
 
 <script>
 (async function(){
+    // Lazy-load external SDKs only when actually needed (saves ~200KB on initial load).
+    function loadScript(src) {
+        return new Promise(function(resolve, reject) {
+            if (document.querySelector('script[src="'+src+'"]')) { resolve(); return; }
+            var s = document.createElement('script'); s.src = src;
+            s.onload = resolve; s.onerror = reject;
+            document.head.appendChild(s);
+        });
+    }
+    function loadRazorpay() { return loadScript('https://checkout.razorpay.com/v1/checkout.js'); }
+    function loadHtml2Canvas() { return loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'); }
+
     let menuData = {}, customData = {}, reviews = {}, soldOut = [], cart = {};
     let special = null;
     let userCoins = 0;
@@ -975,6 +992,7 @@
                 }
             };
 
+            await loadRazorpay();
             const rzp = new Razorpay(options);
 
             rzp.on('payment.failed', function(response) {
@@ -1218,7 +1236,8 @@
         stToast(d.coins_awarded > 0 ? '+10 coins for sharing!' : 'Already shared this order', d.coins_awarded > 0 ? 'lucide:coins' : 'lucide:info');
       } catch (e) {}
     }
-    if (window.html2canvas) {
+    if (true) {
+      await loadHtml2Canvas();
       const modal = document.getElementById('orderModal'), closeBtn = document.getElementById('modalCloseBtn');
       shareBtn.style.visibility = 'hidden'; closeBtn.style.visibility = 'hidden';
       try {
