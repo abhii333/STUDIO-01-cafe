@@ -122,7 +122,7 @@ def api_recommendations():
         # Human-readable "why" = the strongest non-zero signal.
         top_signal = max(contrib, key=contrib.get)
         if contrib[top_signal] <= 0:
-            reason = 'Chef’s pick'
+            reason = 'Popular on our menu'
         elif top_signal == 'fav_item':
             reason = 'One of your favorites'
         elif top_signal == 'fav_cat':

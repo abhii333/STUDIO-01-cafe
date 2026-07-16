@@ -31,6 +31,7 @@ def _clean_items(raw):
 
     SECURITY: prices are recomputed from the menu (same as customer checkout
     and POS) — a participant's submitted price is never trusted directly.
+    Returns (items, subtotal, error_msg). error_msg is None if all items valid.
     """
     items, subtotal = [], 0.0
     for it in (raw or []):
@@ -46,10 +47,10 @@ def _clean_items(raw):
         qty = min(qty, 99)
         _, unit_price = _recompute_item_unit_price(name)
         if unit_price is None:
-            continue  # unknown item/add-on — silently dropped, not charged
+            return [], 0, f'Unknown item: {name}. Please remove it and try again.'
         items.append({'name': name, 'price': round(unit_price, 2), 'quantity': qty})
         subtotal += unit_price * qty
-    return items, round(subtotal, 2)
+    return items, round(subtotal, 2), None
 
 
 def _group_state(group, viewer_id):
@@ -148,7 +149,9 @@ def set_my_items(code):
         return jsonify({'success': False, 'message': 'This group order is locked.'}), 409
     uid = current_user_id()
     user = User.query.get(uid)
-    items, subtotal = _clean_items((request.get_json(silent=True) or {}).get('items'))
+    items, subtotal, err = _clean_items((request.get_json(silent=True) or {}).get('items'))
+    if err:
+        return jsonify({'success': False, 'message': err}), 400
     contrib = GroupOrderContribution.query.filter_by(group_id=group.id, user_id=uid).first()
     if not contrib:
         contrib = GroupOrderContribution(group_id=group.id, user_id=uid, participant_name=user.username)

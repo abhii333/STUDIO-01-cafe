@@ -431,3 +431,25 @@ def api_tables():
     return jsonify([{'id': t.id, 'table_number': t.table_number, 'capacity': t.capacity,
                      'location': t.location,
                      'available': bool(t.is_available and t.id not in booked)} for t in tables])
+
+
+@orders_bp.route('/api/user/orders/<int:oid>/cancel', methods=['POST'])
+@jwt_required()
+def cancel_my_order(oid):
+    """Customer cancels their own order (only if still Pending)."""
+    order = Order.query.filter_by(order_id=oid, user_id=current_user_id()).first()
+    if not order:
+        return jsonify({'success': False, 'message': 'Order not found.'}), 404
+    if order.status != 'Pending':
+        return jsonify({'success': False, 'message': 'Only pending orders can be cancelled.'}), 400
+
+    # Refund coins
+    if order.coins_used > 0:
+        user = User.query.get(current_user_id())
+        if user:
+            user.coins += order.coins_used
+
+    order.status = 'Cancelled'
+    db.session.commit()
+    return jsonify({'success': True, 'message': 'Order cancelled. Coins refunded.',
+                    'refunded_coins': order.coins_used or 0})

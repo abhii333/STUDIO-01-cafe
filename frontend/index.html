@@ -370,6 +370,14 @@
     <p style="color:var(--text-muted);font-size:.875rem" id="modalDateTime"></p>
     <p style="color:var(--terracotta);font-size:.875rem;font-weight:700;margin-top:8px" id="modalPaymentMethod"></p>
     
+    <!-- GST breakdown (Indian law) -->
+    <div id="modalGst" style="display:none;margin:14px 0;padding:12px;border:1px solid var(--border);border-radius:8px;font-size:.8rem;text-align:left;background:rgba(250,247,242,.6)">
+        <div style="display:flex;justify-content:space-between"><span>Base amount</span><span id="gstBase"></span></div>
+        <div style="display:flex;justify-content:space-between"><span id="gstCgstLabel">CGST</span><span id="gstCgst"></span></div>
+        <div style="display:flex;justify-content:space-between"><span id="gstSgstLabel">SGST</span><span id="gstSgst"></span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:700;margin-top:6px;padding-top:6px;border-top:1px solid var(--border)"><span>Total (incl. GST)</span><span id="gstTotal"></span></div>
+    </div>
+    
     <div id="modalCoinsEarned" style="display:none; background:rgba(196,112,75,.1); padding:12px; border-radius:8px; margin:16px 0; font-size:.875rem; font-weight:600; color:var(--terracotta); align-items:center; justify-content:center; gap:8px;">
         <iconify-icon icon="lucide:coins" width="18"></iconify-icon>
         <span id="modalCoinsText"></span>
@@ -1030,6 +1038,19 @@
             document.getElementById('modalPaymentMethod').textContent = `Payment: ${data.payment_method || 'Cash at counter'}`;
             document.getElementById('upiQrWrap').style.display = 'none';
             document.getElementById('billQrImg').src = data.bill_qr_url;
+
+            // Show GST breakdown
+            if (data.gst) {
+                document.getElementById('modalGst').style.display = 'block';
+                document.getElementById('gstBase').textContent = '₹' + data.gst.base_amount;
+                document.getElementById('gstCgstLabel').textContent = 'CGST @' + data.gst.cgst_rate + '%';
+                document.getElementById('gstCgst').textContent = '₹' + data.gst.cgst;
+                document.getElementById('gstSgstLabel').textContent = 'SGST @' + data.gst.sgst_rate + '%';
+                document.getElementById('gstSgst').textContent = '₹' + data.gst.sgst;
+                document.getElementById('gstTotal').textContent = '₹' + data.gst.grand_total;
+            } else {
+                document.getElementById('modalGst').style.display = 'none';
+            }
 
             if(data.coins_earned > 0) {
                 document.getElementById('modalCoinsEarned').style.display = 'flex';

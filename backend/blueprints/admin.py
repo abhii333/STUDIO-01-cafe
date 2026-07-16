@@ -208,7 +208,7 @@ def order_status(oid):
                     'paid': o.status == 'Paid', 'payment_id': o.payment_id})
 
 
-_VALID_STATUSES = {'Pending', 'Preparing', 'Ready', 'Completed', 'Paid'}
+_VALID_STATUSES = {'Pending', 'Preparing', 'Ready', 'Completed', 'Paid', 'Cancelled'}
 
 
 @admin_bp.route('/api/admin/update-order-status', methods=['POST'])
@@ -776,3 +776,81 @@ def analytics_dashboard():
         'peak_hours': peak_hours,
         'peak_hour': peak_hour,
     })
+
+
+@admin_bp.route('/api/admin/orders/<int:oid>/add-items', methods=['POST'])
+@admin_required
+def add_items_to_order(oid):
+    """Staff can add items to an existing order (customer asked for more after ordering)."""
+    o = Order.query.filter_by(order_id=oid).first()
+    if not o:
+        return jsonify({'success': False, 'message': 'Order not found.'}), 404
+    if o.status == 'Completed':
+        return jsonify({'success': False, 'message': 'Cannot add items to a completed order.'}), 400
+
+    d = request.get_json(silent=True) or {}
+    new_items = []
+    added_total = 0.0
+    for it in (d.get('items') or []):
+        if not isinstance(it, dict):
+            continue
+        name = str(it.get('name', '')).strip()[:120]
+        try:
+            qty = int(it.get('quantity', 1) or 1)
+        except (TypeError, ValueError):
+            continue
+        if not name or qty <= 0:
+            continue
+        qty = min(qty, 99)
+        from blueprints.orders import _recompute_item_unit_price
+        _, unit_price = _recompute_item_unit_price(name)
+        if unit_price is None:
+            return jsonify({'success': False, 'message': f'Unknown item: {name}'}), 400
+        new_items.append({'name': name, 'price': round(unit_price, 2), 'quantity': qty})
+        added_total += unit_price * qty
+
+    if not new_items:
+        return jsonify({'success': False, 'message': 'No valid items to add.'}), 400
+
+    # Merge new items into the existing order's items list.
+    try:
+        existing_items = json.loads(o.items)
+    except Exception:
+        existing_items = []
+    existing_items.extend(new_items)
+    o.items = json.dumps(existing_items)
+    o.total = round(o.total + added_total, 2)
+    o.currency_paid = round(o.currency_paid + added_total, 2)
+    db.session.commit()
+
+    api_cache.invalidate('menu')  # in case sold-out status changed
+    return jsonify({'success': True, 'order_id': o.order_id, 'new_total': o.total,
+                    'items_added': len(new_items)})
+
+
+@admin_bp.route('/api/admin/orders/<int:oid>/cancel', methods=['POST'])
+@admin_required
+def cancel_order(oid):
+    """Admin cancels an order. Refunds coins if any were used."""
+    o = Order.query.filter_by(order_id=oid).first()
+    if not o:
+        return jsonify({'success': False, 'message': 'Order not found.'}), 404
+    if o.status == 'Cancelled':
+        return jsonify({'success': True, 'already': True, 'message': 'Already cancelled.'})
+    if o.status == 'Completed':
+        return jsonify({'success': False, 'message': 'Cannot cancel a completed order.'}), 400
+
+    # Refund coins to the customer if they used any.
+    if o.user_id and o.coins_used > 0:
+        user = User.query.get(o.user_id)
+        if user:
+            user.coins += o.coins_used
+
+    o.status = 'Cancelled'
+    try:
+        db.session.add(OrderAudit(order_id=oid, admin_id=current_user_id(), action='cancel',
+                                   meta=json.dumps({'refunded_coins': o.coins_used or 0})))
+    except Exception:
+        pass
+    db.session.commit()
+    return jsonify({'success': True, 'message': 'Order cancelled.', 'refunded_coins': o.coins_used or 0})
