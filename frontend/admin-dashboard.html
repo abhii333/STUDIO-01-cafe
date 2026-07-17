@@ -322,6 +322,10 @@
         let _ordersInit = false;   // becomes true after the first orders load
         let _ordersPollTimer = null;
         let _audioCtx = null;
+        // ---- Orders board state (Active/All filter over the recent orders) ----
+        let _allOrders = [];
+        let _ordersFilter = 'active';   // 'active' = not Completed/Cancelled
+        let renderOrderCard = null;     // assigned in loadData (card template)
         function beepNewOrder() {
             try {
                 _audioCtx = _audioCtx || new (window.AudioContext || window.webkitAudioContext)();
@@ -361,13 +365,16 @@
         }
         async function pollNewOrders() {
             try {
-                const res = await API.authFetch('/api/admin/orders');
+                // Lightweight: fetch only the highest order_id, not the whole list.
+                const res = await API.authFetch('/api/admin/orders/latest-id');
                 if (!res || !res.ok) return;
-                const orders = await res.json();
-                const maxId = (orders || []).reduce((m, o) => Math.max(m, o.order_id || 0), 0);
-                if (maxId > _maxSeenOrderId) {
+                const d = await res.json();
+                const maxId = (d && d.latest_id) || 0;
+                if (_ordersInit && maxId > _maxSeenOrderId) {
                     // A new order arrived — alert and do a full refresh.
-                    noteOrdersSeen(orders, true);
+                    _maxSeenOrderId = maxId;
+                    beepNewOrder();
+                    flashTitle();
                     loadData();
                 }
             } catch (e) { /* silent — retry next tick */ }
@@ -378,6 +385,22 @@
         }
         function stopOrdersPoll() { if (_ordersPollTimer) { clearInterval(_ordersPollTimer); _ordersPollTimer = null; } }
         document.addEventListener('visibilitychange', () => { if (document.hidden) stopOrdersPoll(); else startOrdersPoll(); });
+
+        // ---- Orders board rendering (Active by default, toggle to All) ----
+        function isActiveOrder(o) { return o.status !== 'Completed' && o.status !== 'Cancelled'; }
+        function setOrdersFilter(f) { _ordersFilter = f; renderOrdersBoard(); }
+        function renderOrdersBoard() {
+            const oSec = document.getElementById('orders-sec');
+            if (!oSec || typeof renderOrderCard !== 'function') return;
+            const activeCount = _allOrders.filter(isActiveOrder).length;
+            const shown = _ordersFilter === 'all' ? _allOrders : _allOrders.filter(isActiveOrder);
+            const bar = '<div class="seg" style="margin-bottom:16px">'
+                + '<button class="' + (_ordersFilter === 'active' ? 'active' : '') + '" onclick="setOrdersFilter(\'active\')">Active (' + activeCount + ')</button>'
+                + '<button class="' + (_ordersFilter === 'all' ? 'active' : '') + '" onclick="setOrdersFilter(\'all\')">All (' + _allOrders.length + ')</button>'
+                + '</div>';
+            oSec.innerHTML = bar + (shown.length ? shown.map(renderOrderCard).join('')
+                : '<p style="text-align:center;color:var(--text-muted)">' + (_ordersFilter === 'active' ? 'No active orders right now.' : 'No orders.') + '</p>');
+        }
 
         async function loadData() {
             // Skeletonise the orders board on first paint (guard no-ops on refresh/poll,
@@ -417,9 +440,8 @@
                 `<div class="toggle-item ${so.includes(m) ? 'sold' : ''}" onclick="toggleSold('${esc(m).replace(/'/g, "\\'")}', this)">${esc(m)}<span>${so.includes(m) ? 'SOLD OUT' : 'AVAILABLE'}</span></div>`
             ).join('');
 
-            // Orders
-            const oSec = document.getElementById('orders-sec');
-            oSec.innerHTML = orders.length ? orders.map(o => {
+            // Orders — define the card renderer, then render via the Active/All filter.
+            renderOrderCard = (o) => {
                 const items = o.items.map(i => esc(i.name)).join(', ');
                 const isCancelled = o.status === 'Cancelled';
                 let btn = '';
@@ -457,7 +479,9 @@
                         ${paymentLabel}${btn}${extraBtns}
                     </div>
                 </div>`;
-            }).join('') : '<p style="text-align:center;color:var(--text-muted)">No orders.</p>';
+            };
+            _allOrders = orders;
+            renderOrdersBoard();
             if (window.Skeletons) Skeletons.clear('orders-sec');
             noteOrdersSeen(orders, false);  // seed/refresh the high-water mark (no alert on manual refresh)
 

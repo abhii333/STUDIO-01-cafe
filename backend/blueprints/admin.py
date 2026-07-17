@@ -47,15 +47,18 @@ def _invalidate_caches(response):
 @admin_bp.route('/api/admin/orders')
 @admin_required
 def api_admin_orders():
-    orders = Order.query.order_by(Order.id.desc()).all()
+    # Bound the payload to the most recent orders (newest first) and batch-load
+    # usernames in a single query to avoid an N+1 lookup per order.
+    orders = Order.query.order_by(Order.id.desc()).limit(200).all()
+    names = {}
+    user_ids = {o.user_id for o in orders if o.user_id}
+    if user_ids:
+        for u in User.query.filter(User.id.in_(user_ids)).all():
+            names[u.id] = u.username
     out = []
     for o in orders:
-        name = None
-        if o.user_id:
-            u = User.query.get(o.user_id)
-            name = u.username if u else None
         # POS/walk-in orders have no account — fall back to the label staff typed.
-        name = name or o.customer_label or "Walk-in"
+        name = names.get(o.user_id) or o.customer_label or "Walk-in"
         out.append({
             "order_id": o.order_id, "customer_name": name,
             "items": json.loads(o.items), "total": o.total, "currency_paid": o.currency_paid,
@@ -64,6 +67,15 @@ def api_admin_orders():
             "channel": o.channel, "table": o.table_label,
         })
     return jsonify(out)
+
+
+@admin_bp.route('/api/admin/orders/latest-id')
+@admin_required
+def api_admin_orders_latest_id():
+    """Lightweight poll target — the highest order_id, so the dashboard can detect
+    new orders without downloading the whole order list every few seconds."""
+    max_oid = db.session.query(db.func.max(Order.order_id)).scalar() or 0
+    return jsonify({"latest_id": max_oid})
 
 
 @admin_bp.route('/api/admin/pos-order', methods=['POST'])
