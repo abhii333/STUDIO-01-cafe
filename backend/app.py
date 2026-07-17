@@ -184,6 +184,13 @@ def init_db():
         seed_admin()
         normalize_referral_codes()
         fix_broken_menu_images()
+        # One-time menu replacement: set RESEED_MENU=1 in Render env vars,
+        # deploy, then REMOVE the var after the first boot succeeds. The guard
+        # ensures it only runs once even if the dyno restarts multiple times.
+        if os.environ.get('RESEED_MENU') == '1':
+            from seed import reseed_menu
+            reseed_menu()
+            print('[init_db] Menu reseeded from DEFAULT_MENU. Remove RESEED_MENU env var now.')
 
 
 # Auto-init on import when explicitly enabled (set AUTO_INIT_DB=1 on Render).
