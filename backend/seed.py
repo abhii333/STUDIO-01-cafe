@@ -71,118 +71,145 @@ def ensure_schema():
         print(f"[WARN] ensure_schema failed: {exc}")
 
 
-def seed_menu():
-    """Seed the default menu ONLY on a brand-new database (no categories exist yet).
+# ---------------------------------------------------------------------------
+# MENU — single source of truth for seed_menu() and reseed_menu().
+# Prices are the launch prices (already include the +20% uplift over base).
+# ---------------------------------------------------------------------------
+_UNSPLASH = "https://images.unsplash.com/"
+_WM = "https://commons.wikimedia.org/wiki/Special:FilePath/"
 
-    Once the menu is seeded, the admin manages it entirely via the dashboard
-    (add/edit/delete items). This function NEVER re-inserts items that an admin
-    has intentionally deleted — it's a one-time first-boot setup only.
-    """
-    if Category.query.first() is not None:
-        return  # menu already exists — admin owns it from here
-    # Images — real Unsplash photos for each dish.
-    default_imgs = {
-        # Starters
-        "Tandoori Paneer Tikka": "https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?w=400&fit=crop",
-        "Hara Bhara Kebab": "https://images.unsplash.com/photo-1601050690117-94f5f6fa8bd7?w=400&fit=crop",
-        "Crispy Chilli Baby Corn": "https://images.unsplash.com/photo-1626200419199-391ae4be7a41?w=400&fit=crop",
-        "Truffle Mushroom Bruschetta": "https://images.unsplash.com/photo-1572695157366-5e585ab2b69f?w=400&fit=crop",
-        "Edamame Hummus Platter": "https://images.unsplash.com/photo-1577805947697-89e18249d767?w=400&fit=crop",
-        # Soups & Salads
-        "Roasted Tomato Basil Soup": "https://images.unsplash.com/photo-1547592166-23ac45744acd?w=400&fit=crop",
-        "Lemon Coriander Soup": "https://images.unsplash.com/photo-1604152135912-04a022e23696?w=400&fit=crop",
-        "Mediterranean Greek Salad": "https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?w=400&fit=crop",
-        "Quinoa & Pomegranate Salad": "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=400&fit=crop",
-        # Gourmet Sandwiches
-        "Spinach, Corn & Cheese Panini": "https://images.unsplash.com/photo-1528735602780-2552fd46c7af?w=400&fit=crop",
-        "Pesto Caprese Sandwich": "https://images.unsplash.com/photo-1539252554453-80ab65ce3586?w=400&fit=crop",
-        "Bombay Masala Grilled Toast": "https://images.unsplash.com/photo-1528736235302-52922df5c122?w=400&fit=crop",
-        "Caprese Ciabatta": "https://images.unsplash.com/photo-1528735602780-2552fd46c7af?w=400&fit=crop",
-        "Smoked Gouda & Pear Melt": "https://images.unsplash.com/photo-1528736235302-52922df5c122?w=400&fit=crop",
-        # Main Course
-        "Paneer Butter Masala": "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=400&fit=crop",
-        "Dal Makhani": "https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=400&fit=crop",
-        "Vegetable Dum Biryani": "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=400&fit=crop",
-        "Roasted Vegetable Risotto": "https://images.unsplash.com/photo-1476124369491-e7addf5db371?w=400&fit=crop",
-        "Paneer Roulade": "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=400&fit=crop",
-        "Thai Green Curry Bowl": "https://images.unsplash.com/photo-1455619452474-d2be8b1e70cd?w=400&fit=crop",
-        # Desserts
-        "Sizzling Walnut Brownie": "https://images.unsplash.com/photo-1564355808539-22fda35bed7e?w=400&fit=crop",
-        "Classic Gulab Jamun": "https://upload.wikimedia.org/wikipedia/commons/5/56/Gulab_Jamun.jpg",
-        "Rasmalai": "https://images.unsplash.com/photo-1645177628172-a94c1f96e6db?w=400&fit=crop",
-        "Dark Chocolate Ganache Tart": "https://images.unsplash.com/photo-1551024506-0bccd828d307?w=400&fit=crop",
-        "Saffron Infused Panna Cotta": "https://images.unsplash.com/photo-1488477181946-6428a0291777?w=400&fit=crop",
-        # Beverages
-        "Classic Cold Coffee": "https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=400&fit=crop",
-        "Fresh Lime Soda": "https://images.unsplash.com/photo-1556881286-fc6915169721?w=400&fit=crop",
-        "Almond Saffron Milk": "https://upload.wikimedia.org/wikipedia/commons/3/38/Glass_of_milk.jpg",
-        "Cold Brew Coffee": "https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=400&fit=crop",
-        "Hibiscus Iced Tea": "https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=400&fit=crop",
-        "Turmeric Oat Latte": "https://images.unsplash.com/photo-1541167760496-1628856ab772?w=400&fit=crop",
-    }
+# Reusable, verified image URLs: Unsplash CDN (proven in prod) + stable
+# Wikimedia Commons files (vegetarian-appropriate). All admin-editable later.
+_IMG = {
+    'espresso':    _UNSPLASH + "photo-1495474472287-4d71bcdd2085?w=600&q=80&fit=crop",
+    'latte':       _UNSPLASH + "photo-1541167760496-1628856ab772?w=600&q=80&fit=crop",
+    'iced_coffee': _UNSPLASH + "photo-1461023058943-07fcbe16d735?w=600&q=80&fit=crop",
+    'iced_tea':    _UNSPLASH + "photo-1556679343-c7306c1976bc?w=600&q=80&fit=crop",
+    'brownie':     _UNSPLASH + "photo-1564355808539-22fda35bed7e?w=600&q=80&fit=crop",
+    'ganache':     _UNSPLASH + "photo-1551024506-0bccd828d307?w=600&q=80&fit=crop",
+    'hot_choc':    _WM + "Hot-chocolate-1058197.jpg?width=600",
+    'burger':      _WM + "Food_topic_image_Veggie_burger.jpg?width=600",
+    'pizza':       _WM + "Margherita_PIzza_%28Unsplash%29.jpg?width=600",
+    'fries':       _WM + "French_Fries.jpg?width=600",
+    'garlic':      _WM + "Close-up_of_garlic_bread.jpg?width=600",
+    'icecream':    _WM + "Ice_Cream_Dessert_%28Unsplash%29.jpg?width=600",
+    'muffin':      _WM + "Muffin_%2823699389073%29.jpg?width=600",
+    'fallback':    _UNSPLASH + "photo-1504674900247-0877df9cc836?w=600&q=80&fit=crop",
+}
 
-    # Ordered dict — categories seeded in this order so the frontend menu starts from Starters.
-    menu_data = [
-        ("Starters", [
-            ("Tandoori Paneer Tikka", 350, "Marinated cottage cheese cubes roasted in a tandoor."),
-            ("Hara Bhara Kebab", 280, "Spiced patties made from spinach, peas, and potatoes."),
-            ("Crispy Chilli Baby Corn", 320, "Fried baby corn tossed in a spicy, tangy sauce."),
-            ("Truffle Mushroom Bruschetta", 450, "Wild mushrooms, truffle oil, balsamic glaze on sourdough."),
-            ("Edamame Hummus Platter", 490, "Creamy edamame puree, crudités, warm za'atar flatbread."),
-        ]),
-        ("Soups & Salads", [
-            ("Roasted Tomato Basil Soup", 250, "A rich, warm soup served with a drizzle of cream."),
-            ("Lemon Coriander Soup", 220, "A clear, refreshing vegetable broth."),
-            ("Mediterranean Greek Salad", 380, "Fresh cucumbers, tomatoes, olives, and feta tossed in olive oil."),
-            ("Quinoa & Pomegranate Salad", 480, "Organic quinoa, arugula, pomegranate seeds, toasted walnuts."),
-        ]),
-        ("Gourmet Sandwiches", [
-            ("Spinach, Corn & Cheese Panini", 420, "Grilled to perfection in artisanal bread."),
-            ("Pesto Caprese Sandwich", 450, "Fresh mozzarella, tomatoes, and basil pesto."),
-            ("Bombay Masala Grilled Toast", 350, "Spiced potato filling with green chutney and cheese."),
-            ("Caprese Ciabatta", 550, "Fresh mozzarella, heirloom tomatoes, basil pesto, arugula."),
-            ("Smoked Gouda & Pear Melt", 580, "Caramelized pears, smoked gouda, arugula, honey drizzle on rye."),
-        ]),
-        ("Main Course", [
-            ("Paneer Butter Masala", 420, "Cottage cheese in a rich, creamy tomato gravy."),
-            ("Dal Makhani", 350, "Slow-cooked black lentils finished with butter and cream."),
-            ("Vegetable Dum Biryani", 450, "Fragrant basmati rice cooked with mixed vegetables and whole spices."),
-            ("Roasted Vegetable Risotto", 750, "Arborio rice, seasonal roasted vegetables, parmesan crisp."),
-            ("Paneer Roulade", 680, "Paneer stuffed with spinach and nuts, served with saffron gravy."),
-            ("Thai Green Curry Bowl", 720, "Fragrant coconut-based curry, bamboo shoots, tofu, jasmine rice."),
-        ]),
-        ("Desserts", [
-            ("Sizzling Walnut Brownie", 320, "Served warm on a hot plate."),
-            ("Classic Gulab Jamun", 180, "Deep-fried milk solids soaked in sugar syrup."),
-            ("Rasmalai", 220, "Soft paneer discs soaked in thickened, sweetened milk."),
-            ("Dark Chocolate Ganache Tart", 350, "70% cocoa, sea salt, raspberry coulis."),
-            ("Saffron Infused Panna Cotta", 380, "Velvety Italian cream, saffron thread, pistachio crumble."),
-        ]),
-        ("Beverages", [
-            ("Classic Cold Coffee", 220, "Blended sweet iced coffee."),
-            ("Fresh Lime Soda", 150, "Available sweet, salted, or mixed."),
-            ("Almond Saffron Milk", 280, "Served chilled or warm."),
-            ("Cold Brew Coffee", 250, "Slow-steeped 12-hour extraction."),
-            ("Hibiscus Iced Tea", 220, "Floral, tart, and refreshing."),
-            ("Turmeric Oat Latte", 280, "Golden milk with ginger, cinnamon, and creamy oat milk."),
-        ]),
-    ]
+# category -> [(item_name, price, description, image_key), ...]
+DEFAULT_MENU = [
+    ("Hot Coffee", [
+        ("Espresso", 119, "Pulled to order, rich crema.", 'espresso'),
+        ("Americano", 143, "Espresso and hot water — honest and clean.", 'espresso'),
+        ("Café Latte", 179, "Espresso with silky steamed milk.", 'latte'),
+        ("Cappuccino", 179, "Equal parts espresso, milk, and microfoam.", 'latte'),
+        ("Caramel Macchiato", 215, "Vanilla, espresso, and hand-drizzled caramel.", 'latte'),
+    ]),
+    ("Cold Coffee", [
+        ("Cold Brew", 203, "Steeped slow for 18 hours.", 'iced_coffee'),
+        ("Iced Latte", 215, "Espresso over ice with cold milk.", 'iced_coffee'),
+        ("Cold Coffee Frappe", 239, "Blended cold, topped with whipped cream.", 'iced_coffee'),
+        ("Choco Frappe", 251, "Cocoa and cold brew, blended.", 'iced_coffee'),
+    ]),
+    ("Beverages", [
+        ("Hot Chocolate", 191, "Belgian cocoa with steamed milk.", 'hot_choc'),
+        ("Iced Tea", 155, "Peach or lemon, brewed fresh.", 'iced_tea'),
+    ]),
+    ("Burgers", [
+        ("Classic Veg Burger", 119, "Potato patty with house sauce.", 'burger'),
+        ("Cheesy Veg Burger", 155, "Veg patty with double cheese.", 'burger'),
+        ("Crispy Paneer Burger", 179, "Fried paneer with mint mayo.", 'burger'),
+        ("Paneer Tikka Burger", 203, "Tandoor-charred paneer with mint chutney.", 'burger'),
+        ("Cheese Overload Burger", 215, "Triple cheese with crisp onions.", 'burger'),
+        ("Double Paneer Burger", 275, "Two patties with double cheese.", 'burger'),
+    ]),
+    ("Pizzas", [
+        ("Margherita", 239, "Tomato, mozzarella, and basil. 8-inch medium.", 'pizza'),
+        ("Farmhouse", 359, "Onion, capsicum, and mushroom. 8-inch medium.", 'pizza'),
+        ("Peppy Paneer", 395, "Paneer, capsicum, and red pepper. 8-inch medium.", 'pizza'),
+        ("Cheese Burst Veggie", 431, "Loaded veg with a molten cheese core. 8-inch medium.", 'pizza'),
+        ("Paneer Tikka Pizza", 419, "Tandoori paneer, onion, and capsicum. 8-inch medium.", 'pizza'),
+        ("BBQ Paneer", 455, "Smoky BBQ paneer with onion. 8-inch medium.", 'pizza'),
+        ("Four Cheese", 479, "Mozzarella, cheddar, parmesan, and cream cheese. 8-inch medium.", 'pizza'),
+    ]),
+    ("Sides & Snacks", [
+        ("French Fries", 119, "Salted and crisped to order.", 'fries'),
+        ("Peri Peri Fries", 155, "Spiced and tangy.", 'fries'),
+        ("Cheesy Garlic Bread", 179, "Toasted with molten cheese.", 'garlic'),
+        ("Veg Nuggets (6 pc)", 155, "Crisp, served with dip.", 'fries'),
+        ("Paneer Poppers (6 pc)", 191, "Crisp, served with dip.", 'fries'),
+        ("Cheese Corn Balls (6 pc)", 215, "Crisp shell with a molten center.", 'fries'),
+        ("Coleslaw", 95, "Fresh and creamy.", 'fallback'),
+    ]),
+    ("Combos", [
+        ("No. 1 — Solo Value Meal", 299, "Any classic burger + fries + soft drink.", 'burger'),
+        ("No. 2 — Pizza For Two", 539, "Any medium pizza + garlic bread + 2 cold drinks.", 'pizza'),
+        ("No. 3 — Coffee & Bite", 275, "Any hot beverage + burger of your choice.", 'burger'),
+        ("No. 4 — Family Feast", 959, "Large pizza + 6pc paneer poppers + fries + 4 drinks.", 'pizza'),
+        ("No. 5 — Study Break", 335, "Cold coffee + fries + veg nuggets.", 'fries'),
+        ("No. 6 — Study Squad", 1079, "Large pizza + garlic bread + 4 cold coffees. Serves 3–4.", 'pizza'),
+    ]),
+    ("Desserts", [
+        ("Chocolate Brownie", 155, "Warm, fudgy, and dense. Eggless.", 'brownie'),
+        ("Molten Lava Cake", 179, "Gooey chocolate center. Eggless.", 'ganache'),
+        ("Soft Serve Cone", 71, "Vanilla or chocolate.", 'icecream'),
+        ("Chocolate Chip Cookie", 59, "Baked in-house.", 'brownie'),
+        ("Banana Muffin", 83, "Moist, baked fresh.", 'muffin'),
+        ("Chocolate Muffin", 83, "Moist, baked fresh.", 'muffin'),
+        ("Biscotti (2 pc)", 71, "Twice-baked, pairs with espresso.", 'ganache'),
+    ]),
+]
 
-    fallback = "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=400&fit=crop"
 
-    for cat_name, items in menu_data:
+def _seed_menu_items():
+    """Insert DEFAULT_MENU categories + items (assumes the menu tables are empty)."""
+    for cat_name, items in DEFAULT_MENU:
         cat = Category(name=cat_name)
         db.session.add(cat)
         db.session.flush()
-        # Batch all items for this category in one add_all.
-        new_items = [
-            MenuItem(name=item_name, price=price, description=desc,
-                     image_url=default_imgs.get(item_name, fallback), category_id=cat.id)
-            for item_name, price, desc in items
-        ]
-        if new_items:
-            db.session.add_all(new_items)
+        db.session.add_all([
+            MenuItem(name=name, price=price, description=desc,
+                     image_url=_IMG.get(img_key, _IMG['fallback']), category_id=cat.id)
+            for name, price, desc, img_key in items
+        ])
     db.session.commit()
+
+
+def seed_menu():
+    """Seed the default menu ONLY on a brand-new database (no categories yet).
+
+    After first boot the admin owns the menu via the dashboard; this never
+    re-inserts deleted items. To intentionally REPLACE the whole menu on an
+    existing database, run scripts/reseed_menu.py (which calls reseed_menu()).
+    """
+    if Category.query.first() is not None:
+        return
+    _seed_menu_items()
+
+
+def reseed_menu():
+    """DESTRUCTIVE: replace the entire menu with DEFAULT_MENU.
+
+    Clears categories, menu items, offers (+ their items), and the daily
+    special, then reseeds. Historical orders and reviews (which store item
+    names as text) are left untouched. Returns the number of items seeded.
+    """
+    from models import Offer, OfferItem, Special
+    # Delete children before parents to satisfy FK constraints (Postgres enforces).
+    OfferItem.query.delete()
+    Offer.query.delete()
+    Special.query.delete()
+    MenuItem.query.delete()
+    Category.query.delete()
+    db.session.commit()
+    _seed_menu_items()
+    try:
+        from cache import api_cache
+        api_cache.invalidate('menu', 'soldout', 'special', 'offers')
+    except Exception:
+        pass
+    return sum(len(items) for _, items in DEFAULT_MENU)
 
 
 def seed_admin():

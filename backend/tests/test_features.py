@@ -11,7 +11,7 @@ def cust_token(client, u='feat'):
     return register_user(client, u).get_json()['access_token']
 
 
-def place_order(client, tok, name='Cold Brew Coffee', price=250):
+def place_order(client, tok, name='Cold Brew', price=203):
     return client.post('/api/order', headers=bearer(tok), json={
         'items': [{'name': name, 'price': price, 'quantity': 1}],
         'total': price, 'coins_to_use': 0, 'payment_method': 'Cash at counter'})

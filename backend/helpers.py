@@ -72,7 +72,7 @@ def calculate_coins(amount):
 
 
 def get_redeemable_items():
-    redeemable_cats = ['Beverages', 'Gourmet Sandwiches', 'Desserts']
+    redeemable_cats = ['Hot Coffee', 'Cold Coffee', 'Beverages', 'Sides & Snacks', 'Desserts']
     categories = Category.query.filter(Category.name.in_(redeemable_cats)).all()
     r = {}
     for cat in categories:

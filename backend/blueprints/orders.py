@@ -97,8 +97,8 @@ def api_menu():
     if cached:
         return cached
     categories = Category.query.options(joinedload(Category.items)).all()
-    # Preferred display order — Starters first, Beverages last.
-    _CAT_ORDER = ["Starters", "Soups & Salads", "Gourmet Sandwiches", "Main Course", "Desserts", "Beverages"]
+    # Preferred display order — coffee first, desserts last.
+    _CAT_ORDER = ["Hot Coffee", "Cold Coffee", "Beverages", "Burgers", "Pizzas", "Sides & Snacks", "Combos", "Desserts"]
     def _sort_key(cat):
         try:
             return _CAT_ORDER.index(cat.name)
