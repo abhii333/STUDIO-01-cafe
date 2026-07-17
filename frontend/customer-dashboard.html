@@ -146,7 +146,15 @@
                 </div>`).join('');
             if (window.Skeletons) Skeletons.clear('badgesGrid');
 
-            const orders = await (await API.authFetch('/api/user/orders')).json();
+            let orders;
+            try {
+                orders = await (await API.authFetch('/api/user/orders')).json();
+            } catch (e) {
+                // Network error (401 already redirects via authFetch) — don't strand skeletons.
+                if (window.Skeletons) { Skeletons.clear('statsGrid'); Skeletons.clear('orders'); }
+                document.getElementById('orders').innerHTML = '<p style="text-align:center;color:var(--text-muted)">Could not load your orders. Please refresh.</p>';
+                return;
+            }
             // Render the stat cards now that coins + order totals are known.
             const _spent = orders.reduce((a, b) => a + b.currency_paid, 0);
             document.getElementById('statsGrid').innerHTML =

@@ -1196,31 +1196,21 @@
 
   (async function () {
     if (!(window.API && API.isLoggedIn())) return; // Don't show recommendations to guests
-    const wrap = document.getElementById('recoWrap');
-    wrap.style.display = 'block';
-    if (window.Skeletons) Skeletons.fill('recoGrid', 'menu-card', 3);
+    // Reveal only after data arrives (this section is optional/below-the-fold, so
+    // a pre-revealed skeleton that then collapses when empty would just cause jank).
     try {
       const headers = {}; if (window.API && API.getAccess()) headers['Authorization'] = 'Bearer ' + API.getAccess();
       const recs = await fetch(apiUrl('/api/recommendations'), { headers }).then(r => r.json());
       if (Array.isArray(recs) && recs.length) {
         document.getElementById('recoGrid').innerHTML = recs.map(itemCard).join('');
-        if (window.Skeletons) Skeletons.clear('recoGrid'); // drop loading markers; real cards already in
+        document.getElementById('recoWrap').style.display = 'block';
         // Click handling is done via a delegated listener in the main script
         // block (matches on .reco-add), so no per-button binding needed here.
-      } else {
-        if (window.Skeletons) Skeletons.clear('recoGrid');
-        wrap.style.display = 'none'; // nothing to recommend — hide the section
       }
-    } catch (e) {
-      if (window.Skeletons) Skeletons.clear('recoGrid');
-      wrap.style.display = 'none';
-    }
+    } catch (e) {}
   })();
 
   (async function () {
-    const wrap = document.getElementById('dealsWrap');
-    wrap.style.display = 'block';
-    if (window.Skeletons) Skeletons.fill('dealsGrid', 'menu-card', 3);
     try {
       const offers = await fetch(apiUrl('/api/offers')).then(r => r.json());
       if (Array.isArray(offers) && offers.length) {
@@ -1229,21 +1219,12 @@
           const deal = o.offer_type === 'combo' ? ('Combo Rs.' + o.combo_price) : (o.offer_type === 'percent' ? (o.discount_value + '% OFF') : ('Rs.' + o.discount_value + ' OFF'));
           return '<div class="menu-card"><img class="menu-card-img" src="'+esc(img)+'" onerror="this.onerror=null;this.src=\'/static/placeholder.svg\'"><div class="menu-card-body"><div class="menu-card-name">'+esc(o.title)+' <span class="badge badge-discount" style="position:static">'+esc(deal)+'</span></div><div class="menu-card-desc">'+esc(o.description||'')+'</div>'+(o.items&&o.items.length?'<div class="menu-card-desc" style="color:var(--terracotta)">'+o.items.map(esc).join(', ')+'</div>':'')+'</div></div>';
         }).join('');
-        if (window.Skeletons) Skeletons.clear('dealsGrid');
-      } else {
-        if (window.Skeletons) Skeletons.clear('dealsGrid');
-        wrap.style.display = 'none'; // no active offers — hide the section
+        document.getElementById('dealsWrap').style.display = 'block';
       }
-    } catch (e) {
-      if (window.Skeletons) Skeletons.clear('dealsGrid');
-      wrap.style.display = 'none';
-    }
+    } catch (e) {}
   })();
 
   (async function () {
-    const section = document.getElementById('events');
-    section.style.display = 'block';
-    if (window.Skeletons) Skeletons.fill('eventsGrid', 'event-card', 3);
     try {
       const events = await fetch(apiUrl('/api/events')).then(r => r.json());
       if (Array.isArray(events) && events.length) {
@@ -1252,15 +1233,9 @@
           const sold = e.is_sold_out;
           return '<div class="menu-card" style="flex-direction:column"><img class="menu-card-img" style="width:100%;height:150px" src="'+esc(img)+'" onerror="this.onerror=null;this.src=\'/static/placeholder.svg\'"><div class="menu-card-body"><div class="menu-card-name">'+esc(e.title)+'</div><div class="menu-card-desc">'+esc(e.description||'')+'</div><div class="menu-card-desc">'+esc(e.date)+' at '+esc(e.time)+'</div><div class="menu-card-footer"><span class="menu-card-price">'+(e.price>0?('Rs.'+e.price):'Free')+'</span><button class="btn btn-primary" style="padding:8px 16px" '+(sold?'disabled':'')+' onclick="registerEvent('+e.id+')">'+(sold?'Sold Out':'Register')+'</button></div><div style="font-size:.7rem;color:var(--text-muted);margin-top:4px">'+e.registered_count+'/'+e.capacity+' registered</div></div></div>';
         }).join('');
-        if (window.Skeletons) Skeletons.clear('eventsGrid');
-      } else {
-        if (window.Skeletons) Skeletons.clear('eventsGrid');
-        section.style.display = 'none'; // no upcoming events — hide the section
+        document.getElementById('events').style.display = 'block';
       }
-    } catch (e) {
-      if (window.Skeletons) Skeletons.clear('eventsGrid');
-      section.style.display = 'none';
-    }
+    } catch (e) {}
   })();
 
   window.registerEvent = async function (eid) {

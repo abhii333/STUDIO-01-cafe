@@ -402,10 +402,15 @@
 
             document.getElementById('specItem').innerHTML = menuItemNames.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('');
 
-            // Revenue chart
-            const ctx = document.getElementById('revenueChart').getContext('2d');
-            if (revenueChart) revenueChart.destroy();
-            revenueChart = new Chart(ctx, { type: 'bar', data: { labels: Object.keys(stats), datasets: [{ label: 'Revenue (₹)', data: Object.values(stats), backgroundColor: 'rgba(196,112,75,.5)', borderColor: '#C4704B', borderWidth: 2 }] }, options: { scales: { y: { beginAtZero: true } } } });
+            // Revenue chart — guarded so a Chart.js CDN failure can't abort the rest
+            // of loadData (orders board, reservations, audits still render).
+            try {
+                if (window.Chart) {
+                    const ctx = document.getElementById('revenueChart').getContext('2d');
+                    if (revenueChart) revenueChart.destroy();
+                    revenueChart = new Chart(ctx, { type: 'bar', data: { labels: Object.keys(stats), datasets: [{ label: 'Revenue (₹)', data: Object.values(stats), backgroundColor: 'rgba(196,112,75,.5)', borderColor: '#C4704B', borderWidth: 2 }] }, options: { scales: { y: { beginAtZero: true } } } });
+                }
+            } catch (e) { /* charting is non-critical — keep the dashboard working */ }
 
             // Sold-out grid
             document.getElementById('soldOutGrid').innerHTML = menuItemNames.map(m =>

@@ -1,0 +1,5 @@
+# Cloudflare Pages / Netlify redirects.
+
+# Keep dev-only skeleton tooling (capture harness, smoke pages, tests) out of
+# production. The re-capture workflow is run against a LOCAL server, not prod.
+/tools/*  /404.html  404

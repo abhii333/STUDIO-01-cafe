@@ -1,0 +1,12 @@
+# Cloudflare Pages / Netlify headers.
+#
+# These mirror the security headers in netlify.toml so they ALSO apply on the
+# current host (Cloudflare Pages ignores netlify.toml). The CSP is intentionally
+# permissive for now (matches netlify.toml); tighten connect-src to the specific
+# API/Razorpay origins during hardening once the final backend URL is fixed.
+
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer-when-downgrade
+  Content-Security-Policy: default-src 'self' https: data: 'unsafe-inline'; img-src 'self' data: https:; connect-src *;
