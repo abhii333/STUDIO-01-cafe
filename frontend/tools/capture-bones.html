@@ -53,7 +53,11 @@
 
     async function getPageStyles(page) {
       if (styleCache[page]) return styleCache[page];
-      const html = await (await fetch('../' + page)).text();
+      let html = await (await fetch('../' + page)).text();
+      // Strip <script> first so a <style> string embedded in JS (e.g. printBill's
+      // white-space:pre-wrap bill window) can't leak into the capture CSS and
+      // inflate card heights via rendered indentation whitespace.
+      html = html.replace(/<script[\s\S]*?<\/script>/gi, '');
       const blocks = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)].map(m => m[1]);
       styleCache[page] = blocks.join('\n');
       return styleCache[page];

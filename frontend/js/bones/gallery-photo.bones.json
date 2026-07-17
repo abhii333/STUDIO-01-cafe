@@ -1,0 +1,71 @@
+{
+  "name": "gallery-photo",
+  "breakpoints": {
+    "375": {
+      "name": "gallery-photo",
+      "viewportWidth": 158,
+      "width": 158,
+      "height": 142,
+      "bones": [
+        {
+          "x": 0,
+          "y": 0,
+          "w": 100,
+          "h": 120,
+          "r": 8
+        },
+        {
+          "x": 0,
+          "y": 128,
+          "w": 100,
+          "h": 14,
+          "r": 8
+        }
+      ]
+    },
+    "768": {
+      "name": "gallery-photo",
+      "viewportWidth": 171,
+      "width": 171,
+      "height": 142,
+      "bones": [
+        {
+          "x": 0,
+          "y": 0,
+          "w": 100,
+          "h": 120,
+          "r": 8
+        },
+        {
+          "x": 0,
+          "y": 128,
+          "w": 100,
+          "h": 14,
+          "r": 8
+        }
+      ]
+    },
+    "1280": {
+      "name": "gallery-photo",
+      "viewportWidth": 161,
+      "width": 161,
+      "height": 142,
+      "bones": [
+        {
+          "x": 0,
+          "y": 0,
+          "w": 100,
+          "h": 120,
+          "r": 8
+        },
+        {
+          "x": 0,
+          "y": 128,
+          "w": 100,
+          "h": 14,
+          "r": 8
+        }
+      ]
+    }
+  }
+}

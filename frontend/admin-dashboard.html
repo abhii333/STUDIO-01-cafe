@@ -114,7 +114,7 @@
                 <div class="card">
                     <h3>Menu</h3>
                     <div class="pos-cats" id="posCats"></div>
-                    <div class="pos-items" id="posItems"><p style="color:var(--text-muted)">Loading menu…</p></div>
+                    <div class="pos-items" id="posItems"></div>
                 </div>
                 <div class="card ticket">
                     <h3>Order Ticket</h3>
@@ -405,7 +405,11 @@
         async function loadData() {
             // Skeletonise the orders board on first paint (guard no-ops on refresh/poll,
             // since the board already holds real order cards by then).
-            if (window.Skeletons) Skeletons.fill('orders-sec', 'admin-order-card', 3);
+            if (window.Skeletons) {
+                Skeletons.fill('orders-sec', 'admin-order-card', 3);
+                Skeletons.fill('res-sec', 'admin-list-card', 3);
+                Skeletons.fill('audits-sec', 'admin-list-card', 3);
+            }
             let stats, orders, res, so, auditsResp, menu;
             try {
                 [stats, orders, res, so, auditsResp, menu] = await Promise.all([
@@ -416,7 +420,7 @@
                     API.authFetch('/api/admin/audits').then(r => r.json()),
                     API.apiFetch('/api/menu').then(r => r.json())
                 ]);
-            } catch (e) { if (window.Skeletons) Skeletons.clear('orders-sec'); return; } // authFetch redirects on 401
+            } catch (e) { if (window.Skeletons) { Skeletons.clear('orders-sec'); Skeletons.clear('res-sec'); Skeletons.clear('audits-sec'); } return; } // authFetch redirects on 401
 
             // Dynamic menu names (replaces the old hardcoded array)
             menuItemNames = [];
@@ -493,12 +497,14 @@
                     ${r.notes && r.notes !== 'None' ? `<p style="margin-top:8px;color:var(--text-muted)">"${esc(r.notes)}"</p>` : ''}
                 </div></div>`
             ).join('') : '<p style="text-align:center;color:var(--text-muted)">No reservations.</p>';
+            if (window.Skeletons) Skeletons.clear('res-sec');
 
             // Audits (endpoint returns {audits:[...]})
             const audits = (auditsResp && auditsResp.audits) || [];
             document.getElementById('audits-sec').innerHTML = audits.length ? audits.map(a =>
                 `<div class="order"><div class="order-head"><strong>Order #${a.order_id}</strong><span>${esc(a.action)}</span></div><div class="order-body"><p><strong>By:</strong> ${esc(a.admin)} | <strong>At:</strong> ${new Date(a.timestamp).toLocaleString()}</p><p style="margin-top:8px;color:var(--text-muted)">${esc(JSON.stringify(a.meta))}</p></div></div>`
             ).join('') : '<p style="text-align:center;color:var(--text-muted)">No audit entries.</p>';
+            if (window.Skeletons) Skeletons.clear('audits-sec');
         }
 
         function switchTab(id, el) {
@@ -839,11 +845,14 @@
 
         // ---- Photos / Gallery (Task 13) ----
         async function loadPhotos() {
-            const photos = await API.apiFetch('/api/photos').then(r => r.json());
+            if (window.Skeletons) Skeletons.fill('photosList', 'gallery-photo', 6);
+            let photos = [];
+            try { photos = await API.apiFetch('/api/photos').then(r => r.json()); } catch (e) {}
             document.getElementById('photosList').innerHTML = photos.length ? photos.map(p => `
                 <div style="position:relative"><img src="${esc(p.image_url)}" style="width:100%;height:120px;object-fit:cover;border-radius:8px">
                 <button class="btn" style="background:#dc3545;position:absolute;top:6px;right:6px;padding:4px 9px;margin:0" onclick="deletePhoto(${p.id})">×</button>
                 ${p.caption ? `<p style="font-size:.75rem;color:var(--text-muted);margin-top:4px">${esc(p.caption)}</p>` : ''}</div>`).join('') : '<p style="color:var(--text-muted)">No photos yet.</p>';
+            if (window.Skeletons) Skeletons.clear('photosList');
         }
         async function addPhoto() {
             const msg = document.getElementById('phMsg');
@@ -861,12 +870,14 @@
         let _posType = 'dine-in';
 
         async function loadPos() {
+            if (window.Skeletons) Skeletons.fill('posItems', 'pos-item', 8);
             try {
                 const data = await API.apiFetch('/api/menu').then(r => r.json());
                 _posMenu = data.menu || {};
                 renderPosCats();
                 renderPosItems();
-            } catch (e) { document.getElementById('posItems').innerHTML = '<p style="color:var(--text-muted)">Could not load menu.</p>'; }
+                if (window.Skeletons) Skeletons.clear('posItems');
+            } catch (e) { if (window.Skeletons) Skeletons.clear('posItems'); document.getElementById('posItems').innerHTML = '<p style="color:var(--text-muted)">Could not load menu.</p>'; }
             updatePosHint();
         }
         function updatePosHint() {
@@ -1104,9 +1115,10 @@
             });
         }
         async function loadAnalytics() {
+            if (window.Skeletons) Skeletons.fill('anSummary', 'an-stat', 6);
             let d;
             try { d = await API.authFetch('/api/admin/analytics/dashboard').then(r => r.json()); }
-            catch (e) { return; }
+            catch (e) { if (window.Skeletons) Skeletons.clear('anSummary'); return; }
             const s = d.summary || {};
             document.getElementById('anSummary').innerHTML = [
                 ['Revenue', '₹' + (s.total_revenue || 0)],
@@ -1116,6 +1128,7 @@
                 ['Items Sold', s.items_sold || 0],
                 ['Guest Orders', s.guest_orders || 0]
             ].map(([k, v]) => `<div class="an-stat"><div class="an-stat-label">${k}</div><div class="an-stat-val">${v}</div></div>`).join('');
+            if (window.Skeletons) Skeletons.clear('anSummary');
 
             const rt = d.revenue_trend || [];
             drawAnChart('anRevChart', 'line', rt.map(x => x.date), rt.map(x => x.revenue), 'Revenue (₹)');

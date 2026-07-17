@@ -175,4 +175,43 @@ export const FIXTURES = [
         </div>
       </div>`,
   },
+  {
+    // POS menu tile (New Order tab) — small card with a name line + price line.
+    name: 'pos-item',
+    page: 'admin-dashboard.html',
+    selector: '.pos-item',
+    containerOpen: '<div class="container"><div class="pos-items" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px">',
+    containerClose: '</div></div>',
+    html: `
+      <div class="pos-item">
+        <div class="n">Café Latte</div>
+        <div class="p">₹179</div>
+      </div>`,
+  },
+  {
+    // Gallery photo tile — image block + a caption line.
+    name: 'gallery-photo',
+    page: 'admin-dashboard.html',
+    selector: '.gallery-photo',
+    containerOpen: '<div class="container"><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px">',
+    containerClose: '</div></div>',
+    html: `
+      <div class="gallery-photo" style="position:relative">
+        <img src="/static/placeholder.svg" style="width:100%;height:120px;object-fit:cover;border-radius:8px">
+        <p style="font-size:.75rem;color:var(--text-muted);margin-top:4px">Caption text</p>
+      </div>`,
+  },
+  {
+    // Analytics summary tile (an-stat) — small label + big value.
+    name: 'an-stat',
+    page: 'admin-dashboard.html',
+    selector: '.an-stat',
+    containerOpen: '<div class="container"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px">',
+    containerClose: '</div></div>',
+    html: `
+      <div class="an-stat">
+        <div class="an-stat-label">Revenue</div>
+        <div class="an-stat-val">₹12,340</div>
+      </div>`,
+  },
 ];
