@@ -51,9 +51,11 @@
   margin-top: 16px;
 }
 
-/* Reserve a little height on the always-present grids so the area does not
-   collapse in the brief moment before skeletons paint (reduces CLS). */
-#menuGrid { min-height: 280px; }
+/* Reserve height ONLY while the skeleton is showing (data-skeleton is set by
+   fill() and removed by clear()). Scoping it this way prevents the grid from
+   stretching sparse real categories (e.g. Beverages with 2 items) — the bug
+   where a single row grew to fill the min-height and made cards abnormally tall. */
+#menuGrid[data-skeleton] { min-height: 280px; }
 
 /* Accessibility: honour reduced-motion — show static bones, no pulse. */
 @media (prefers-reduced-motion: reduce) {

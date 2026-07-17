@@ -27,6 +27,10 @@ export const FIXTURES = [
     name: 'menu-card',
     page: 'index.html',
     selector: '.menu-card',
+    // The 90x90 thumbnail is square, so Boneyard's "squarish media" heuristic
+    // renders it as a circle. The real .menu-card-img is a rounded rect
+    // (border-radius:8px), so the capturer rewrites that image bone to r:8.
+    fixSquareImage: true,
     containerOpen: '<section class="menu-section" style="padding:24px 0"><div class="container"><div class="menu-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px">',
     containerClose: '</div></div></section>',
     html: `
@@ -147,6 +151,25 @@ export const FIXTURES = [
             <img src="/static/placeholder.svg" style="width:56px;height:56px;object-fit:cover;border-radius:8px">
             <p style="flex:1;color:var(--text-muted);font-size:.85rem">Espresso with silky steamed milk.</p>
           </div>
+          <button class="btn">Edit</button>
+          <button class="btn" style="background:#dc3545;margin-left:8px">Delete</button>
+        </div>
+      </div>`,
+  },
+  {
+    // Generic simple admin card (header + a couple of lines + two buttons, no
+    // progress tracker) — matches the Offers / Tables / Events list cards.
+    name: 'admin-list-card',
+    page: 'admin-dashboard.html',
+    selector: '.order',
+    containerOpen: '<div class="container"><div id="offersList">',
+    containerClose: '</div></div>',
+    html: `
+      <div class="order">
+        <div class="order-head"><strong>Breakfast Combo</strong><span class="badge badge-ready">Active</span></div>
+        <div class="order-body">
+          <p style="color:var(--text-muted);font-size:.85rem">A short description of this item goes here.</p>
+          <p style="margin-top:6px"><strong>combo</strong> · ₹299</p>
           <button class="btn">Edit</button>
           <button class="btn" style="background:#dc3545;margin-left:8px">Delete</button>
         </div>

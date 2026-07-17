@@ -722,7 +722,7 @@
         // ---- Offers (Task 9) ----
         let _offers = {};
         async function loadOffers() {
-            if (window.Skeletons) Skeletons.fill('offersList', 'admin-order-card', 3);
+            if (window.Skeletons) Skeletons.fill('offersList', 'admin-list-card', 3);
             const [offers, items] = await Promise.all([
                 API.authFetch('/api/admin/offers').then(r => r.json()),
                 API.authFetch('/api/admin/menu-items').then(r => r.json())
@@ -789,7 +789,7 @@
 
         // ---- Tables (Task 10) ----
         async function loadTables() {
-            if (window.Skeletons) Skeletons.fill('tablesList', 'admin-order-card', 3);
+            if (window.Skeletons) Skeletons.fill('tablesList', 'admin-list-card', 3);
             const tables = await API.authFetch('/api/admin/tables').then(r => r.json());
             document.getElementById('tablesList').innerHTML = tables.length ? tables.map(t => `
                 <div class="order"><div class="order-head"><strong>${esc(t.table_number)} · ${esc(t.location)}</strong><span class="badge ${t.is_available ? 'badge-ready' : 'badge-completed'}">${t.is_available ? 'Available' : 'Disabled'}</span></div>
@@ -813,7 +813,7 @@
         // ---- Events (Task 14) ----
         let _events = {};
         async function loadEvents() {
-            if (window.Skeletons) Skeletons.fill('eventsList', 'admin-order-card', 3);
+            if (window.Skeletons) Skeletons.fill('eventsList', 'admin-list-card', 3);
             const events = await API.authFetch('/api/admin/events').then(r => r.json());
             _events = {}; events.forEach(e => _events[e.id] = e);
             document.getElementById('eventsList').innerHTML = events.length ? events.map(e => `

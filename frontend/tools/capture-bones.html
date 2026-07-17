@@ -94,6 +94,11 @@
         const el = doc.querySelector(fx.selector);
         if (!el) { cell.querySelector('.preview').textContent = 'selector not found'; continue; }
         const skel = iframe.contentWindow.__snap(el, fx.name);
+        // Square thumbnails trip Boneyard's "circle" heuristic; rewrite the large
+        // image bone to a rounded rect to match the real CSS (see fixture flag).
+        if (fx.fixSquareImage && skel.bones) {
+          skel.bones.forEach(b => { if (b.r === '50%' && b.h > 40) b.r = 8; });
+        }
         breakpoints[bp] = skel;
         cell.querySelector('.preview').innerHTML = renderBones(skel, BONE_COLOR, true);
       }
