@@ -518,7 +518,7 @@
         // ---- Menu management (Task 8) ----
         let _menuItems = {};
         async function loadMenu() {
-            if (window.Skeletons) Skeletons.fill('menuItemsList', 'admin-order-card', 3);
+            if (window.Skeletons) Skeletons.fill('menuItemsList', 'admin-menu-item', 3);
             const [cats, items] = await Promise.all([
                 API.authFetch('/api/admin/categories').then(r => r.json()),
                 API.authFetch('/api/admin/menu-items').then(r => r.json())

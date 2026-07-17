@@ -27,17 +27,17 @@ export const FIXTURES = [
     name: 'menu-card',
     page: 'index.html',
     selector: '.menu-card',
-    containerOpen: '<section class="menu-section" style="padding:24px 0"><div class="container"><div class="menu-grid">',
+    containerOpen: '<section class="menu-section" style="padding:24px 0"><div class="container"><div class="menu-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px">',
     containerClose: '</div></div></section>',
     html: `
-      <div class="menu-card revealed">
-        <img class="menu-card-img" src="/static/placeholder.svg" alt="">
-        <div class="menu-card-body">
-          <div class="menu-card-name">Cold Brew Coffee <span class="stars">&#9733; 4.8</span></div>
-          <div class="menu-card-desc">Slow-steeped 12-hour extraction with chocolate and citrus notes.</div>
-          <div class="menu-card-footer">
-            <span class="menu-card-price">Rs.250</span>
-            <button class="menu-card-add">+</button>
+      <div class="menu-card revealed" style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px;display:flex;gap:16px;position:relative">
+        <img class="menu-card-img" src="/static/placeholder.svg" alt="" style="width:90px;height:90px;border-radius:8px;object-fit:cover;flex-shrink:0">
+        <div class="menu-card-body" style="flex:1;display:flex;flex-direction:column;gap:6px">
+          <div class="menu-card-name" style="font-weight:700;font-size:1rem">Café Latte</div>
+          <div class="menu-card-desc" style="font-size:.85rem;color:var(--text-muted)">Espresso with silky steamed milk.</div>
+          <div class="menu-card-footer" style="display:flex;align-items:center;justify-content:space-between;margin-top:auto">
+            <span class="menu-card-price" style="font-weight:800;color:var(--terracotta)">Rs.179</span>
+            <button class="menu-card-add" style="width:36px;height:36px;border-radius:50%;border:1px solid var(--border);background:var(--card);font-size:1.2rem">+</button>
           </div>
         </div>
       </div>`,
@@ -120,13 +120,35 @@ export const FIXTURES = [
             <div style="display:flex;flex-direction:column;align-items:center;flex:1;position:relative;z-index:1"><div style="width:28px;height:28px;border-radius:50%;background:var(--border);color:var(--text-muted);display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;margin-bottom:6px">3</div><span style="font-size:.65rem;color:var(--text-muted);text-transform:uppercase;font-weight:600">Ready</span></div>
             <div style="display:flex;flex-direction:column;align-items:center;flex:1;position:relative;z-index:1"><div style="width:28px;height:28px;border-radius:50%;background:var(--border);color:var(--text-muted);display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;margin-bottom:6px">4</div><span style="font-size:.65rem;color:var(--text-muted);text-transform:uppercase;font-weight:600">Completed</span></div>
           </div>
-          <p><strong>Items:</strong> Cold Brew Coffee, Edamame Hummus Platter</p>
-          <p style="margin-top:8px"><strong>Total:</strong> &#8377;740</p>
+          <p><strong>Items:</strong> Cold Brew, Cheesy Garlic Bread</p>
+          <p style="margin-top:8px"><strong>Total:</strong> &#8377;382</p>
           <p style="margin-top:8px"><strong>Payment:</strong> Cash</p>
           <button class="btn">Start Preparing</button>
           <button class="btn" style="background:#2c9f4a;margin-left:8px">Mark Paid</button>
           <button class="btn" style="background:#6c5ce7;margin-left:8px">Add Items</button>
           <button class="btn" style="background:#dc3545;margin-left:8px">Cancel</button>
+        </div>
+      </div>`,
+  },
+  {
+    name: 'admin-menu-item',
+    page: 'admin-dashboard.html',
+    selector: '.order',
+    containerOpen: '<div class="container"><div id="menuItemsList">',
+    containerClose: '</div></div>',
+    html: `
+      <div class="order">
+        <div class="order-head">
+          <strong>Café Latte — ₹179</strong>
+          <span>Hot Coffee</span>
+        </div>
+        <div class="order-body">
+          <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px">
+            <img src="/static/placeholder.svg" style="width:56px;height:56px;object-fit:cover;border-radius:8px">
+            <p style="flex:1;color:var(--text-muted);font-size:.85rem">Espresso with silky steamed milk.</p>
+          </div>
+          <button class="btn">Edit</button>
+          <button class="btn" style="background:#dc3545;margin-left:8px">Delete</button>
         </div>
       </div>`,
   },
